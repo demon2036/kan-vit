@@ -113,12 +113,12 @@ class ChebyKAN(nn.Module):
         self.projection_out = nn.Dense(self.out_features)
 
         self.linear1 = nn.Dense(self.out_features)
-        self.linear2 = nn.Dense(self.in_features*3)
+        self.linear2 = nn.Dense(self.in_features*4)
 
     def __call__(self, x):
         kan = self.kan_ops2_self(self.projection(x), self.coefficients)
 
-        return kan + self.linear1(nn.gelu(self.linear2(x)))
+        return kan + self.linear1(nn.silu(self.linear2(x)))
     @nn.compact
     def kan_ops2_self(self,x, coefficients):
         # x: (batch_size, in_features)
