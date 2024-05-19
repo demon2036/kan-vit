@@ -1,4 +1,4 @@
-export train_batch_size=1024 warmup_epoch=5 valid_batch_size=1024
+export train_batch_size=4096 warmup_epoch=5 valid_batch_size=1024
 
 
 python3 src/main.py \
@@ -34,8 +34,8 @@ python3 src/main.py \
     --dropout-seed 0 \
     --shuffle-seed 0 \
     --optimizer lion \
-    --learning-rate 1.0e-4 \
-    --weight-decay 10.0 \
+    --learning-rate 2.0e-4 \
+    --weight-decay 1.0 \
     --adam-b1 0.9 \
     --adam-b2 0.99 \
     --adam-eps 1e-8 \
