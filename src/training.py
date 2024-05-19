@@ -197,7 +197,7 @@ def create_train_state(args: argparse.Namespace) -> TrainState:
             learning_rate=learning_rate,
             b1=args.adam_b1,
             b2=args.adam_b2,
-            eps=args.adam_eps,
+            # eps=args.adam_eps,
             weight_decay=args.weight_decay,
             mask=partial(tree_map_with_path, lambda kp, *_: kp[-1].key == "kernel"),
         )
