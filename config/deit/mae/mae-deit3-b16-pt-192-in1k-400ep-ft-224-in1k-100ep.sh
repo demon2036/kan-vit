@@ -1,7 +1,7 @@
 export train_batch_size=512 warmup_epoch=5 epoch=100
 ## $GCS_MODEL_DIR/mae/mae-deit-b16-224-in1k-800ep-last.msgpack \
 python3 src/main.py \
-    --output-dir $GCS_MODEL_DIR \
+    --output-dir $GCS_MODEL_DIR/mae \
     --pretrained-ckpt mae-deit-b16-224-in1k-800ep-last.msgpack \
     --train-dataset-shards "$GCS_DATASET_DIR/imagenet-1k-wds/imagenet1k-train-{0000..1023}.tar" \
     --valid-dataset-shards "$GCS_DATASET_DIR/imagenet-1k-wds/imagenet1k-validation-{00..63}.tar" \
