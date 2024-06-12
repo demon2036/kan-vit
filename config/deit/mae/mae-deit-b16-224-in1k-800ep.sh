@@ -1,6 +1,6 @@
 export train_batch_size=4096 warmup_epoch=40 epoch=800
 
-python3 src/main_pretrain_mae.py.py \
+python3 src/main_pretrain_mae.py \
     --output-dir $GCS_MODEL_DIR/mae \
     --train-dataset-shards "$GCS_DATASET_DIR/imagenet-1k-wds/imagenet1k-train-{0000..1023}.tar" \
     --train-batch-size $train_batch_size \
