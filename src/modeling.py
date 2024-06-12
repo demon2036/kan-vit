@@ -18,13 +18,19 @@ from dataclasses import dataclass, fields
 from functools import partial
 from typing import Any, Literal
 
+import einops
 import flax.linen as nn
 import flax.linen.initializers as init
 import jax.numpy as jnp
 from chex import Array
+from flax.training.train_state import TrainState
 
 from utils import fixed_sincos2d_embeddings
 from kan import KANLayer
+
+import optax
+import jax
+import flax
 
 DenseGeneral = partial(nn.DenseGeneral, kernel_init=init.truncated_normal(0.02))
 Dense = partial(nn.Dense, kernel_init=init.truncated_normal(0.02))
@@ -104,7 +110,7 @@ class Attention(ViTBase, nn.Module):
         self.drop = nn.Dropout(self.dropout)
 
     def __call__(self, x: Array, det: bool = True) -> Array:
-        z = jnp.einsum("bqhd,bkhd->bhqk", self.wq(x) / self.head_dim**0.5, self.wk(x))
+        z = jnp.einsum("bqhd,bkhd->bhqk", self.wq(x) / self.head_dim ** 0.5, self.wk(x))
         z = jnp.einsum("bhqk,bkhd->bqhd", self.drop(nn.softmax(z), det), self.wv(x))
         return self.drop(self.wo(z), det)
 
@@ -170,3 +176,297 @@ class ViT(ViTBase, nn.Module):
         elif self.pooling == "gap":
             x = x.mean(1)
         return self.head(x)
+
+
+@dataclass
+class MAEBase:
+    mask_ratio: int = 0.5
+    decoder_dim: int = 512
+    decoder_layers: int = 8
+    decoder_heads: int = 16
+    decoder_posemb: Literal["learnable", "sincos2d"] = "learnable"
+
+
+class MAE(ViTBase, MAEBase, nn.Module):
+    def setup(self):
+        self.embed = PatchEmbed(**self.kwargs)
+        self.drop = nn.Dropout(self.dropout)
+
+        # The layer class should be wrapped with `nn.remat` if `grad_ckpt` is enabled.
+        layer_fn = nn.remat(ViTLayer) if self.grad_ckpt else ViTLayer
+        self.layer = [layer_fn(**self.kwargs) for _ in range(self.layers)]
+
+        self.norm = nn.LayerNorm()
+
+        self.decoder_embed = Dense(self.decoder_dim)
+
+        self.mask_token = self.param(
+            "mask_token", init.truncated_normal(0.02), (1, 1, self.decoder_dim)
+        )
+
+        self.decoder_pos_embed = self.param(
+            "decoder_pos_embed", init.truncated_normal(0.02), (1, self.num_patches[0] ** 2, self.decoder_dim)
+        )
+
+        kwargs = self.kwargs
+        kwargs.update({'dim': self.decoder_dim, 'heads': self.decoder_heads})
+        print(kwargs)
+        self.decoder_layer = [layer_fn(**kwargs) for _ in range(self.decoder_layers)]
+
+        self.decoder_norm = nn.LayerNorm()
+        self.decoder_pred = Dense(self.patch_size ** 2 * 3)
+
+    def random_masking(self, x):
+        rng = self.make_rng("random_masking")
+        # x = einops.rearrange(x, 'b (h k1) (w k2) c->b (h w) (c k1 k2)', k1=self.patch_size, k2=self.patch_size)
+
+        b, n, d = x.shape
+        len_keep = int(n * (1 - self.mask_ratio))
+
+        noise = jax.random.uniform(rng, shape=(b, n))
+        ids_shuffle = jnp.argsort(noise, axis=1)
+        ids_restore = jnp.argsort(ids_shuffle, axis=1)
+
+        mask = jnp.ones((b, n))
+        mask = mask.at[:, :len_keep].set(0)
+        mask = jnp.take(mask, ids_restore)
+
+        x = jnp.take_along_axis(x, ids_shuffle[:, :len_keep, None], axis=1)
+
+        return x, mask, ids_restore
+
+    def forward_encoder(self, x, det: bool = True):
+        x = self.drop(self.embed(x), det)
+
+        x, mask, ids_restore = self.random_masking(x)
+
+        for layer in self.layer:
+            x = layer(x, det)
+        x = self.norm(x)
+
+        return x, mask, ids_restore
+
+    def forward_decoder(self, x, ids_restore):
+        # print('\n' * 5)
+        # print(x.shape)
+        x = self.decoder_embed(x)
+        # print(x.shape)
+
+        mask_tokens = jnp.tile(self.mask_token, (x.shape[0], ids_restore.shape[1] - x.shape[1], 1))
+
+        # print(mask_tokens.shape,x.shape[0])
+
+        x = jnp.concatenate([x, mask_tokens], axis=1)
+        x = jnp.take_along_axis(x, ids_restore[..., None], axis=1)
+        x = x + self.decoder_pos_embed
+
+        for layer in self.decoder_layer:
+            x = layer(x)
+
+        x = self.decoder_norm(x)
+        x = self.decoder_pred(x)
+
+        # print(mask_tokens.shape, x.shape)
+        return x
+
+    def forward_loss(self, x, pred, mask):
+        target = einops.rearrange(x, 'b (h k1) (w k2) c->b (h w) (c k1 k2)', k1=self.patch_size, k2=self.patch_size)
+        loss = (pred - target) ** 2
+        loss = loss.mean(axis=-1)
+        loss = (loss * mask).sum() / mask.sum()
+        return loss
+
+    def __call__(self, x: Array, det: bool = True, rng=None):
+        latent, mask, ids_restore = self.forward_encoder(x, det)
+        pred = self.forward_decoder(latent, ids_restore)
+        loss = self.forward_loss(x, pred, mask)
+        return loss, pred, mask
+
+
+class EMATrainState(TrainState):
+    label_smoothing: int
+    trade_beta: int
+    ema_decay: int = 0.995
+    ema_params: Any = None
+
+
+def create_train_state(rng,
+                       layers=12,
+                       dim=192,
+                       heads=3,
+                       labels=10,
+                       layerscale=True,
+                       patch_size=2,
+                       image_size=32,
+                       posemb="learnable",
+                       pooling='gap',
+                       dropout=0.0,
+                       droppath=0.0,
+                       clip_grad=1.0,
+                       warmup_steps=None,
+                       training_steps=None,
+                       learning_rate=None,
+                       weight_decay=None,
+                       ema_decay=0.9999,
+                       trade_beta=5.0,
+                       label_smoothing=0.1,
+                       aux_rng_keys: list = ["random_masking"]
+
+                       ):
+    """Creates initial `TrainState`."""
+
+    cnn = MAE(
+        layers=layers,
+        dim=dim,
+        heads=heads,
+        labels=labels,
+        layerscale=layerscale,
+        patch_size=patch_size,
+        image_size=image_size,
+        posemb=posemb,
+        pooling=pooling,
+        dropout=dropout,
+        droppath=droppath,
+    )
+
+    # cnn=RNGModule()
+
+    num_keys = len(aux_rng_keys)
+    key, *subkeys = jax.random.split(rng, num_keys + 1)
+    rng_keys = {aux_rng_keys[ix]: subkeys[ix] for ix in range(len(aux_rng_keys))}
+
+    # image_shape = [1, 28, 28, 1]
+    image_shape = [1, 32, 32, 3]
+
+    # print(rng_keys)
+    # cnn.init({'params': rng, **rng_keys}, jnp.ones(image_shape))
+
+    params = cnn.init({'params': rng, }, jnp.ones(image_shape))['params']
+
+    @partial(optax.inject_hyperparams, hyperparam_dtype=jnp.float32)
+    def create_optimizer_fn(
+            learning_rate: optax.Schedule,
+    ) -> optax.GradientTransformation:
+        tx = optax.lion(
+            learning_rate=learning_rate,
+            # b1=0.95,b2=0.98,
+            # eps=args.adam_eps,
+            weight_decay=weight_decay,
+            mask=partial(jax.tree_util.tree_map_with_path, lambda kp, *_: kp[-1].key == "kernel"),
+        )
+        # if args.lr_decay < 1.0:
+        #     layerwise_scales = {
+        #         i: optax.scale(args.lr_decay ** (args.layers - i))
+        #         for i in range(args.layers + 1)
+        #     }
+        #     label_fn = partial(get_layer_index_fn, num_layers=args.layers)
+        #     label_fn = partial(tree_map_with_path, label_fn)
+        #     tx = optax.chain(tx, optax.multi_transform(layerwise_scales, label_fn))
+        if clip_grad > 0:
+            tx = optax.chain(optax.clip_by_global_norm(clip_grad), tx)
+        return tx
+
+    learning_rate = optax.warmup_cosine_decay_schedule(
+        init_value=1e-6,
+        peak_value=learning_rate,
+        warmup_steps=warmup_steps,
+        decay_steps=training_steps,
+        end_value=1e-5,
+    )
+
+    # learning_rate = optax.warmup_cosine_decay_schedule(
+    #     init_value=1e-7,
+    #     peak_value=LEARNING_RATE,
+    #     warmup_steps=50000 * 5 // TRAIN_BATCH_SIZE,
+    #     decay_steps=50000 * EPOCHS // TRAIN_BATCH_SIZE,
+    #     end_value=1e-6,
+    # )
+
+    tx = create_optimizer_fn(learning_rate)
+
+    return EMATrainState.create(apply_fn=cnn.apply, params=params, tx=tx, ema_params=params, ema_decay=ema_decay,
+                                trade_beta=trade_beta, label_smoothing=label_smoothing)
+
+
+if __name__ == "__main__":
+    rng = jax.random.PRNGKey(1)
+    state = create_train_state(rng, warmup_steps=1000, training_steps=10000000, weight_decay=0.05, learning_rate=1e-3)
+    batch = 2
+    image_shape = [batch, 32, 32, 3]
+
+    k1 = 1
+    k2 = 1
+    x = jnp.ones(image_shape)
+    # x = jax.random.normal(rng, image_shape)
+    """
+    x = einops.rearrange(x, 'b (h k1) (w k2) c ->b (h w) (c k1 k2) ', k1=k1, k2=k2, )
+
+    b, n, d = x.shape
+    # print(rng)
+    noise = jax.random.uniform(rng, shape=(b, n))
+    # ids_shuffle = jnp.argsort(noise, axis=1)
+    ids_shuffle = jnp.arange(0, n)[None, :].repeat(b, 0)
+    ids_restore = jnp.argsort(noise, axis=1)
+
+    mask_ratio = 0.998
+    len_keep = int(n * (1 - mask_ratio))
+    ids_shuffle_expand = ids_shuffle[:, :len_keep, None]  #.repeat(d, -1)
+
+    # print(x[ids_shuffle[:, :len_keep], ids_shuffle[:, :len_keep]])
+
+    # print(x[ids_shuffle[:, :len_keep], ids_shuffle[:, :len_keep]])
+    # print('\n'*5)
+    print(x[:, :len_keep])
+    print('\n' * 5)
+    print(jnp.take_along_axis(x, ids_shuffle_expand, axis=1))
+"""
+
+
+    @jax.jit
+    def loss(params):
+        # y = state.apply_fn({'params': params, }, x, rngs={'random_masking': rng})
+        # return optax.losses.l2_loss(y, jnp.zeros_like(y)).mean()
+
+        out = state.apply_fn({'params': params, }, x, rngs={'random_masking': rng})
+        return out
+
+
+    loss(state.params)
+    """
+    x, mask, ids_restore = loss(state.params)
+   
+    mask_tokens = jnp.zeros((x.shape[0], ids_restore.shape[1] - x.shape[1], x.shape[2]))
+
+    x = jnp.concatenate([x, mask_tokens], axis=1)
+    print(ids_restore[0])
+
+    # ids_restore=jnp.arange(0,256)[None,:].repeat(x.shape[0],0)
+    # print(ids_restore[0])
+    # ids_restore = ids_restore[:, :, None].repeat(x.shape[-1], -1)
+    print(x[0, :, 0])
+    print(ids_restore)
+    x = jnp.take_along_axis(x, ids_restore[..., None], axis=1)
+
+    # x = jnp.take(x, ids_restore[:, :, None].repeat(x.shape[-1], -1))
+
+    print(x.shape, ids_restore.shape)
+    # print(x[0]-y[0])
+    print(x[0, :, 0])
+    print(jnp.take_along_axis(mask, ids_restore, axis=1)[0, :])
+
+    while True:
+        pass
+
+    x = einops.rearrange(x, 'b (h w) (c k1 k2) ->b (h k1) (w k2) c', k1=2, k2=2, h=16)
+
+    
+    import matplotlib.pyplot as plt
+
+    print(x.shape, mask_tokens.shape)
+    plt.imshow(x[0])
+    plt.show()
+
+    plt.imshow(x[1])
+    plt.show()
+
+    """

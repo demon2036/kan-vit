@@ -98,13 +98,12 @@ def collate_and_pad(batch: list[Any], batch_size: int = 1) -> Any:
 
 
 def create_dataloaders(
-        args: argparse.Namespace,
+    args: argparse.Namespace,
 ) -> tuple[DataLoader | None, DataLoader | None]:
     train_dataloader, valid_dataloader = None, None
     train_transform, valid_transform = create_transforms(args)
 
     if args.train_dataset_shards is not None:
-        """
         dataset = wds.DataPipeline(
             wds.SimpleShardList(args.train_dataset_shards, seed=args.shuffle_seed),
             itertools.cycle,
@@ -118,34 +117,6 @@ def create_dataloaders(
             partial(repeat_samples, repeats=args.augment_repeats),
             wds.map_tuple(train_transform, torch.tensor),
         )
-        """
-        ops = [
-            itertools.cycle,
-            wds.detshuffle(),
-            wds.slice(jax.process_index(), None, jax.process_count()),
-            wds.split_by_worker,
-            # wds.tarfile_to_samples(handler=wds.ignore_and_continue),
-            wds.detshuffle(),
-            wds.decode("pil", handler=wds.ignore_and_continue),
-            wds.to_tuple("jpg", "cls", handler=wds.ignore_and_continue),
-            partial(repeat_samples, repeats=args.augment_repeats),
-            wds.map_tuple(train_transform, torch.tensor),
-        ]
-
-        dataset = wds.WebDataset(args.train_dataset_shards, handler=wds.ignore_and_continue, ).mcached()
-        for op in ops:
-            dataset = dataset.compose(op)
-
-        # train_dataloader = DataLoader(
-        #     dataset,
-        #     batch_size=args.train_batch_size // jax.process_count() // args.grad_accum,
-        #     num_workers=args.train_loader_workers,
-        #     collate_fn=partial(collate_and_shuffle, repeats=args.augment_repeats),
-        #     drop_last=True,
-        #     prefetch_factor=20,
-        #     persistent_workers=True,
-        # )
-
         train_dataloader = DataLoader(
             dataset,
             batch_size=args.train_batch_size // jax.process_count() // args.grad_accum,
@@ -155,7 +126,6 @@ def create_dataloaders(
             prefetch_factor=20,
             persistent_workers=True,
         )
-
     if args.valid_dataset_shards is not None:
         dataset = wds.DataPipeline(
             wds.SimpleShardList(args.valid_dataset_shards),
@@ -176,3 +146,17 @@ def create_dataloaders(
             persistent_workers=True,
         )
     return train_dataloader, valid_dataloader
+
+
+
+
+
+
+
+
+
+
+
+
+
+

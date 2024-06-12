@@ -46,6 +46,7 @@ OPTIMIZER_COLLECTION = {
 class TrainState(train_state.TrainState):
     mixup_rng: PRNGKey
     dropout_rng: PRNGKey
+    random_masking_rng: PRNGKey
 
     micro_step: int = 0
     micro_in_mini: int = 1
@@ -54,15 +55,17 @@ class TrainState(train_state.TrainState):
     def split_rngs(self) -> tuple[ArrayTree, ArrayTree]:
         mixup_rng, new_mixup_rng = jax.random.split(self.mixup_rng)
         dropout_rng, new_dropout_rng = jax.random.split(self.dropout_rng)
+        random_masking_rng, new_random_masking_rng = jax.random.split(self.random_masking_rng)
 
-        rngs = {"mixup": mixup_rng, "dropout": dropout_rng}
-        updates = {"mixup_rng": new_mixup_rng, "dropout_rng": new_dropout_rng}
+        rngs = {"mixup": mixup_rng, "dropout": dropout_rng, 'random_masking': random_masking_rng}
+        updates = {"mixup_rng": new_mixup_rng, "dropout_rng": new_dropout_rng, 'random_masking': new_random_masking_rng}
         return rngs, updates
 
     def replicate(self) -> TrainState:
         return flax.jax_utils.replicate(self).replace(
             mixup_rng=shard_prng_key(self.mixup_rng),
             dropout_rng=shard_prng_key(self.dropout_rng),
+            random_masking_rng=shard_prng_key(self.random_masking_rng),
         )
 
 
@@ -191,7 +194,7 @@ def create_train_state(args: argparse.Namespace) -> TrainState:
     # rate will be recorded at `hyperparams` by `optax.inject_hyperparameters`.
     @partial(optax.inject_hyperparams, hyperparam_dtype=jnp.float32)
     def create_optimizer_fn(
-        learning_rate: optax.Schedule,
+            learning_rate: optax.Schedule,
     ) -> optax.GradientTransformation:
         tx = OPTIMIZER_COLLECTION[args.optimizer](
             learning_rate=learning_rate,
@@ -222,6 +225,122 @@ def create_train_state(args: argparse.Namespace) -> TrainState:
     )
     return TrainState.create(
         apply_fn=module.apply,
+        params=params,
+        tx=create_optimizer_fn(learning_rate),
+        mixup_rng=jax.random.PRNGKey(args.mixup_seed + jax.process_index()),
+        dropout_rng=jax.random.PRNGKey(args.dropout_seed + jax.process_index()),
+        micro_step=0,
+        micro_in_mini=args.grad_accum,
+        grad_accum=grad_accum if args.grad_accum > 1 else None,
+    )
+
+
+@partial(jax.pmap, axis_name="batch", donate_argnums=0)
+def training_mae_step(state: TrainState, batch: ArrayTree) -> tuple[TrainState, ArrayTree]:
+    def loss_fn(params: ArrayTree) -> ArrayTree:
+        loss, pred, mask = state.apply_fn({"params": params}, *batch, det=False, rngs=rngs)
+        metrics = {'loss': jnp.mean(loss)}
+        return metrics["loss"], metrics
+
+    def update_fn(state: TrainState) -> TrainState:
+        # Collect a global gradient from the accumulated gradients and apply actual
+        # parameter update with resetting the accumulations to zero.
+        grads = jax.tree_map(lambda g: g / state.micro_in_mini, state.grad_accum)
+        return state.apply_gradients(
+            grads=jax.lax.pmean(grads, axis_name="batch"),
+            grad_accum=jax.tree_map(jnp.zeros_like, state.grad_accum),
+            micro_step=state.micro_step % state.micro_in_mini,
+        )
+
+    rngs, updates = state.split_rngs()
+    (_, metrics), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)
+    metrics = jax.lax.pmean(metrics, axis_name="batch")
+
+    # Update parameters with the gradients. If the gradient accumulation is enabled,
+    # then the parameters will be updated at the end of each mini-batch step. In every
+    # micro steps, the gradients will be accumulated.
+    if state.grad_accum is None:
+        state = state.apply_gradients(grads=jax.lax.pmean(grads, axis_name="batch"))
+    else:
+        state = state.replace(
+            grad_accum=jax.tree_map(lambda ga, g: ga + g, state.grad_accum, grads),
+            micro_step=state.micro_step + 1,
+        )
+        state = jax.lax.cond(
+            state.micro_step == state.micro_in_mini, update_fn, lambda x: x, state
+        )
+    return state.replace(**updates), metrics | state.opt_state.hyperparams
+
+
+def create_mae_train_state(args: argparse.Namespace) -> TrainState:
+    model = ViT(
+        layers=args.layers,
+        dim=args.dim,
+        heads=args.heads,
+        labels=args.labels,
+        layerscale=args.layerscale,
+        patch_size=args.patch_size,
+        image_size=args.image_size,
+        posemb=args.posemb,
+        pooling=args.pooling,
+        dropout=args.dropout,
+        droppath=args.droppath,
+        grad_ckpt=args.grad_ckpt,
+        use_kan=args.use_kan,
+        polynomial_degree=args.polynomial_degree,
+    )
+
+    # Initialize the model weights with dummy inputs. Using the init RNGS and inputs, we
+    # will tabulate the summary of model and its parameters. Furthermore, empty gradient
+    # accumulation arrays will be prepared if the gradient accumulation is enabled.
+    example_inputs = {
+        "images": jnp.zeros((1, 3, args.image_size, args.image_size), dtype=jnp.uint8),
+        "labels": jnp.zeros((1,), dtype=jnp.int32),
+    }
+    init_rngs = {"params": jax.random.PRNGKey(args.init_seed)}
+    print(model.tabulate(init_rngs, **example_inputs))
+
+    params = model.init(init_rngs, **example_inputs)["params"]
+    if args.pretrained_ckpt is not None:
+        params = load_pretrained_params(args, params)
+    if args.grad_accum > 1:
+        grad_accum = jax.tree_map(jnp.zeros_like, params)
+
+    # Create learning rate scheduler and optimizer with gradient clipping. The learning
+    # rate will be recorded at `hyperparams` by `optax.inject_hyperparameters`.
+    @partial(optax.inject_hyperparams, hyperparam_dtype=jnp.float32)
+    def create_optimizer_fn(
+            learning_rate: optax.Schedule,
+    ) -> optax.GradientTransformation:
+        tx = OPTIMIZER_COLLECTION[args.optimizer](
+            learning_rate=learning_rate,
+            b1=args.adam_b1,
+            b2=args.adam_b2,
+            # eps=args.adam_eps,
+            weight_decay=args.weight_decay,
+            mask=partial(tree_map_with_path, lambda kp, *_: kp[-1].key == "kernel"),
+        )
+        if args.lr_decay < 1.0:
+            layerwise_scales = {
+                i: optax.scale(args.lr_decay ** (args.layers - i))
+                for i in range(args.layers + 1)
+            }
+            label_fn = partial(get_layer_index_fn, num_layers=args.layers)
+            label_fn = partial(tree_map_with_path, label_fn)
+            tx = optax.chain(tx, optax.multi_transform(layerwise_scales, label_fn))
+        if args.clip_grad > 0:
+            tx = optax.chain(optax.clip_by_global_norm(args.clip_grad), tx)
+        return tx
+
+    learning_rate = optax.warmup_cosine_decay_schedule(
+        init_value=1e-6,
+        peak_value=args.learning_rate,
+        warmup_steps=args.warmup_steps,
+        decay_steps=args.training_steps,
+        end_value=1e-5,
+    )
+    return TrainState.create(
+        apply_fn=model.apply,
         params=params,
         tx=create_optimizer_fn(learning_rate),
         mixup_rng=jax.random.PRNGKey(args.mixup_seed + jax.process_index()),
