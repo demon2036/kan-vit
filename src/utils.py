@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import re
 import threading
 import time
@@ -150,7 +151,7 @@ def get_layer_index_fn(path: tuple[DictKey, ...], _: Any, num_layers: int = 12) 
 
 def load_pretrained_params(args: argparse.Namespace, params: ArrayTree) -> ArrayTree:
 
-    time.sleep(jax.process_index())
+    time.sleep(random.uniform(0,10))
 
     with wds.gopen(args.pretrained_ckpt) as fp:
         new_params = flax.serialization.msgpack_restore(fp.read())
