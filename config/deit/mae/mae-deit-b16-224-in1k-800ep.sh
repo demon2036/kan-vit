@@ -8,7 +8,7 @@ python3 src/main_pretrain_mae.py \
     --random-crop rrc \
     --color-jitter 0.0 \
     --random-erasing 0.0 \
-    --augment-repeats 3 \
+    --augment-repeats 1 \
     --test-crop-ratio 1.0 \
     --mixup 0.8 \
     --cutmix 1.0 \
@@ -20,7 +20,7 @@ python3 src/main_pretrain_mae.py \
     --labels 1000 \
     --layerscale \
     --patch-size 16 \
-    --image-size 192 \
+    --image-size 224 \
     --posemb learnable \
     --pooling gap \
     --dropout 0.0 \
