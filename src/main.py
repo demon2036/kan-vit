@@ -46,9 +46,11 @@ def evaluate(state: TrainState, dataloader: DataLoader) -> dict[str, float]:
 
 
 def main(args: argparse.Namespace):
+    state = create_train_state(args).replicate()
+
     train_dataloader, valid_dataloader = create_dataloaders(args)
     train_dataloader_iter = iter(train_dataloader)
-    state = create_train_state(args).replicate()
+
 
     if jax.process_index() == 0:
         wandb.init(name=args.name, project=args.project, config=args)
