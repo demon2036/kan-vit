@@ -53,7 +53,7 @@ class AverageMeter:
 
 
 def save_checkpoint_in_background(
-    args: argparse.Namespace, params_bytes: bytes, postfix: str = "last"
+        args: argparse.Namespace, params_bytes: bytes, postfix: str = "last"
 ):
     def thread_fn():
         filename = os.path.join(args.output_dir, f"{args.name}-{postfix}.msgpack")
@@ -122,13 +122,13 @@ def fixed_sincos2d_embeddings(ncols: int, nrows: int, dim: int) -> Array:
 
 
 def modified_lamb(
-    learning_rate: optax.ScalarOrSchedule,
-    b1: float = 0.9,
-    b2: float = 0.999,
-    eps: float = 1e-6,
-    eps_root: float = 0.0,
-    weight_decay: float = 0.0,
-    mask: optax.MaskOrFn = None,
+        learning_rate: optax.ScalarOrSchedule,
+        b1: float = 0.9,
+        b2: float = 0.999,
+        eps: float = 1e-6,
+        eps_root: float = 0.0,
+        weight_decay: float = 0.0,
+        mask: optax.MaskOrFn = None,
 ) -> optax.GradientTransformation:
     return optax.chain(
         optax.scale_by_adam(b1=b1, b2=b2, eps=eps, eps_root=eps_root),
@@ -154,9 +154,9 @@ def load_pretrained_params(args: argparse.Namespace, params: ArrayTree) -> Array
     # The positional embeddings will be resized when there is a difference in image
     # resolutions between pretraining and finetuning stage.
     if (
-        args.posemb == "learnable"
-        and new_params["model"]["embed"]["wpe"].shape
-        != params["model"]["embed"]["wpe"].shape
+            args.posemb == "learnable"
+            and new_params["model"]["embed"]["wpe"].shape
+            != params["model"]["embed"]["wpe"].shape
     ):
         new_params["model"]["embed"]["wpe"] = jax.image.resize(
             new_params["model"]["embed"]["wpe"],
@@ -167,12 +167,21 @@ def load_pretrained_params(args: argparse.Namespace, params: ArrayTree) -> Array
     # Reinitialize the classifier head if the model was pretrained on different dataset
     # and `args.label_mapping` is not specified.
     if (
-        "head" not in new_params["model"]
-        or args.label_mapping is None
-        and new_params["model"]["head"]["kernel"].shape
-        != params["model"]["head"]["kernel"].shape
+            "head" not in new_params["model"]
+            or args.label_mapping is None
+            and new_params["model"]["head"]["kernel"].shape
+            != params["model"]["head"]["kernel"].shape
     ):
         new_params["model"]["head"] = params["model"]["head"]
+
+    keys_to_delete=[k for k in new_params['model'] if 'decoder' in  k]
+    for k in keys_to_delete:
+        del new_params['model'][k]
+
+    # print(new_params['model'].keys())
+    #
+    # while True:
+    #     pass
 
     # If `args.label_mapping` is specified, then the same labels will automatically
     # replaced with the pretrained ones.
