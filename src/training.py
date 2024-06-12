@@ -182,7 +182,7 @@ def create_train_state(args: argparse.Namespace) -> TrainState:
         "labels": jnp.zeros((1,), dtype=jnp.int32),
     }
     init_rngs = {"params": jax.random.PRNGKey(args.init_seed)}
-    print(module.tabulate(init_rngs, **example_inputs))
+    # print(module.tabulate(init_rngs, **example_inputs))
 
     params = module.init(init_rngs, **example_inputs)["params"]
     if args.pretrained_ckpt is not None:
