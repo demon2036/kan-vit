@@ -229,6 +229,7 @@ def create_train_state(args: argparse.Namespace) -> TrainState:
         tx=create_optimizer_fn(learning_rate),
         mixup_rng=jax.random.PRNGKey(args.mixup_seed + jax.process_index()),
         dropout_rng=jax.random.PRNGKey(args.dropout_seed + jax.process_index()),
+        random_masking_rng=jax.random.PRNGKey(args.dropout_seed + jax.process_index()),
         micro_step=0,
         micro_in_mini=args.grad_accum,
         grad_accum=grad_accum if args.grad_accum > 1 else None,
