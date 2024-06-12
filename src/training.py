@@ -58,7 +58,7 @@ class TrainState(train_state.TrainState):
         random_masking_rng, new_random_masking_rng = jax.random.split(self.random_masking_rng)
 
         rngs = {"mixup": mixup_rng, "dropout": dropout_rng, 'random_masking': random_masking_rng}
-        updates = {"mixup_rng": new_mixup_rng, "dropout_rng": new_dropout_rng, 'random_masking': new_random_masking_rng}
+        updates = {"mixup_rng": new_mixup_rng, "dropout_rng": new_dropout_rng, 'random_masking_rng': new_random_masking_rng}
         return rngs, updates
 
     def replicate(self) -> TrainState:
@@ -244,8 +244,7 @@ class TrainMAEModule(nn.Module):
         images = jnp.moveaxis(images, 1, 3).astype(jnp.float32) / 0xFF
         images = (images - IMAGENET_DEFAULT_MEAN) / IMAGENET_DEFAULT_STD
 
-        loss, pred, mask =self.model(images, det=det)
-
+        loss, pred, mask = self.model(images, det=det)
 
         return {'mse_loss': jnp.mean(loss)}
 
