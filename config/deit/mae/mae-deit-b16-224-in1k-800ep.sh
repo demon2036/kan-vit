@@ -1,7 +1,7 @@
-export train_batch_size=4096 warmup_epoch=40
+export train_batch_size=4096 warmup_epoch=40 epoch=800
 
 python3 src/main.py \
-    --output-dir $GCS_MODEL_DIR \
+    --output-dir $GCS_MODEL_DIR/mae \
     --train-dataset-shards "$GCS_DATASET_DIR/imagenet-1k-wds/imagenet1k-train-{0000..1023}.tar" \
     --train-batch-size $train_batch_size \
     --train-loader-workers 40 \
@@ -39,9 +39,9 @@ python3 src/main.py \
     --clip-grad 1.0 \
     --grad-accum 1 \
     --warmup-steps $((1281167 * $warmup_epoch / $train_batch_size)) \
-    --training-steps $((1281167 * 400 / $train_batch_size)) \
+    --training-steps $((1281167 * $epoch / $train_batch_size)) \
     --log-interval 100 \
-    --eval-interval $((1281167 * 1 / $train_batch_size)) \
+    --eval-interval $((1281167 * 5 / $train_batch_size)) \
     --project deit3-jax-mae \
     --name $(basename $0 .sh) \
     --ipaddr $(curl -s ifconfig.me) \
