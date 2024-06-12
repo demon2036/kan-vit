@@ -209,7 +209,7 @@ class MAE(ViTBase, MAEBase, nn.Module):
         )
 
         kwargs = self.kwargs
-        kwargs.update({'dim': self.decoder_dim, 'heads': self.decoder_heads})
+        kwargs.update({'dim': self.decoder_dim, 'heads': self.decoder_heads,'layer':self.decoder_layers})
         print(kwargs)
         self.decoder_layer = [layer_fn(**kwargs) for _ in range(self.decoder_layers)]
 
