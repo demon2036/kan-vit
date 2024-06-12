@@ -316,7 +316,7 @@ def create_mae_train_state(args: argparse.Namespace) -> TrainState:
         "labels": jnp.zeros((1,), dtype=jnp.int32),
     }
     init_rngs = {"params": jax.random.PRNGKey(args.init_seed)}
-    print(module.tabulate(init_rngs, **example_inputs))
+    # print(module.tabulate(init_rngs, **example_inputs))
 
     params = module.init(init_rngs, **example_inputs)["params"]
     if args.pretrained_ckpt is not None:
@@ -363,6 +363,7 @@ def create_mae_train_state(args: argparse.Namespace) -> TrainState:
         tx=create_optimizer_fn(learning_rate),
         mixup_rng=jax.random.PRNGKey(args.mixup_seed + jax.process_index()),
         dropout_rng=jax.random.PRNGKey(args.dropout_seed + jax.process_index()),
+        random_masking_rng=jax.random.PRNGKey(args.dropout_seed + jax.process_index()),
         micro_step=0,
         micro_in_mini=args.grad_accum,
         grad_accum=grad_accum if args.grad_accum > 1 else None,
