@@ -40,7 +40,7 @@ python3 src/main.py \
     --adam-b1 0.9 \
     --adam-b2 0.999 \
     --adam-eps 1e-8 \
-    --lr-decay 1.0 \
+    --lr-decay 0.75 \
     --clip-grad 0.0 \
     --grad-accum 1 \
     --warmup-steps $((1281167 * 5 / $train_batch_size)) \
