@@ -29,7 +29,7 @@ from flax.training.common_utils import shard_prng_key
 from jax.tree_util import tree_map_with_path
 
 from dataset import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
-from modeling import ViT
+from modeling import ViT, MAE
 from utils import Mixup, get_layer_index_fn, load_pretrained_params, modified_lamb
 
 CRITERION_COLLECTION = {
@@ -239,8 +239,8 @@ def create_train_state(args: argparse.Namespace) -> TrainState:
 def training_mae_step(state: TrainState, batch: ArrayTree) -> tuple[TrainState, ArrayTree]:
     def loss_fn(params: ArrayTree) -> ArrayTree:
         loss, pred, mask = state.apply_fn({"params": params}, *batch, det=False, rngs=rngs)
-        metrics = {'loss': jnp.mean(loss)}
-        return metrics["loss"], metrics
+        metrics = {'mse_loss': jnp.mean(loss)}
+        return metrics["mse_loss"], metrics
 
     def update_fn(state: TrainState) -> TrainState:
         # Collect a global gradient from the accumulated gradients and apply actual
@@ -273,7 +273,7 @@ def training_mae_step(state: TrainState, batch: ArrayTree) -> tuple[TrainState, 
 
 
 def create_mae_train_state(args: argparse.Namespace) -> TrainState:
-    model = ViT(
+    model = MAE(
         layers=args.layers,
         dim=args.dim,
         heads=args.heads,

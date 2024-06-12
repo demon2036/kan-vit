@@ -28,7 +28,7 @@ from flax.training.common_utils import shard
 from torch.utils.data import DataLoader
 
 from dataset import create_dataloaders
-from training import TrainState, create_train_state, training_step, validation_step
+from training import TrainState, create_train_state, training_step, validation_step, create_mae_train_state
 from utils import AverageMeter, save_checkpoint_in_background
 
 warnings.filterwarnings("ignore")
@@ -48,7 +48,7 @@ def evaluate(state: TrainState, dataloader: DataLoader) -> dict[str, float]:
 def main(args: argparse.Namespace):
     train_dataloader, valid_dataloader = create_dataloaders(args)
     train_dataloader_iter = iter(train_dataloader)
-    state = create_train_state(args).replicate()
+    state = create_mae_train_state(args).replicate()
 
     if jax.process_index() == 0:
         wandb.init(name=args.name, project=args.project, config=args)
