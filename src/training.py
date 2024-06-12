@@ -235,11 +235,25 @@ def create_train_state(args: argparse.Namespace) -> TrainState:
     )
 
 
+class TrainMAEModule(nn.Module):
+    model: MAE
+
+    def __call__(self, images: Array, labels: Array, det: bool = True) -> ArrayTree:
+        # Normalize the pixel values in TPU devices, instead of copying the normalized
+        # float values from CPU. This may reduce both memory usage and latency.
+        images = jnp.moveaxis(images, 1, 3).astype(jnp.float32) / 0xFF
+        images = (images - IMAGENET_DEFAULT_MEAN) / IMAGENET_DEFAULT_STD
+
+        loss, pred, mask =self.model(images, det=det)
+
+
+        return {'mse_loss': jnp.mean(loss)}
+
+
 @partial(jax.pmap, axis_name="batch", donate_argnums=0)
 def training_mae_step(state: TrainState, batch: ArrayTree) -> tuple[TrainState, ArrayTree]:
     def loss_fn(params: ArrayTree) -> ArrayTree:
-        loss, pred, mask = state.apply_fn({"params": params}, *batch, det=False, rngs=rngs)
-        metrics = {'mse_loss': jnp.mean(loss)}
+        metrics = state.apply_fn({"params": params}, *batch, det=False, rngs=rngs)
         return metrics["mse_loss"], metrics
 
     def update_fn(state: TrainState) -> TrainState:
@@ -290,6 +304,10 @@ def create_mae_train_state(args: argparse.Namespace) -> TrainState:
         polynomial_degree=args.polynomial_degree,
     )
 
+    module = TrainMAEModule(
+        model=model,
+    )
+
     # Initialize the model weights with dummy inputs. Using the init RNGS and inputs, we
     # will tabulate the summary of model and its parameters. Furthermore, empty gradient
     # accumulation arrays will be prepared if the gradient accumulation is enabled.
@@ -298,9 +316,9 @@ def create_mae_train_state(args: argparse.Namespace) -> TrainState:
         "labels": jnp.zeros((1,), dtype=jnp.int32),
     }
     init_rngs = {"params": jax.random.PRNGKey(args.init_seed)}
-    print(model.tabulate(init_rngs, **example_inputs))
+    print(module.tabulate(init_rngs, **example_inputs))
 
-    params = model.init(init_rngs, **example_inputs)["params"]
+    params = module.init(init_rngs, **example_inputs)["params"]
     if args.pretrained_ckpt is not None:
         params = load_pretrained_params(args, params)
     if args.grad_accum > 1:
@@ -340,7 +358,7 @@ def create_mae_train_state(args: argparse.Namespace) -> TrainState:
         end_value=1e-5,
     )
     return TrainState.create(
-        apply_fn=model.apply,
+        apply_fn=module.apply,
         params=params,
         tx=create_optimizer_fn(learning_rate),
         mixup_rng=jax.random.PRNGKey(args.mixup_seed + jax.process_index()),

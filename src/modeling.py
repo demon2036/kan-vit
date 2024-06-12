@@ -180,7 +180,7 @@ class ViT(ViTBase, nn.Module):
 
 @dataclass
 class MAEBase:
-    mask_ratio: int = 0.5
+    mask_ratio: int = 0.75
     decoder_dim: int = 512
     decoder_layers: int = 8
     decoder_heads: int = 16
@@ -232,6 +232,7 @@ class MAE(ViTBase, MAEBase, nn.Module):
         mask = jnp.take(mask, ids_restore)
 
         x = jnp.take_along_axis(x, ids_shuffle[:, :len_keep, None], axis=1)
+        print(x.shape)
 
         return x, mask, ids_restore
 
@@ -276,10 +277,11 @@ class MAE(ViTBase, MAEBase, nn.Module):
         loss = (loss * mask).sum() / mask.sum()
         return loss
 
-    def __call__(self, x: Array, det: bool = True, rng=None):
-        latent, mask, ids_restore = self.forward_encoder(x, det)
+    def __call__(self, images: Array, det: bool = True, rng=None):
+        print(images.shape)
+        latent, mask, ids_restore = self.forward_encoder(images, det)
         pred = self.forward_decoder(latent, ids_restore)
-        loss = self.forward_loss(x, pred, mask)
+        loss = self.forward_loss(images, pred, mask)
         return loss, pred, mask
 
 

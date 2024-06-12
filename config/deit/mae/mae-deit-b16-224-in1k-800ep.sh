@@ -22,7 +22,7 @@ python3 src/main_pretrain_mae.py \
     --patch-size 16 \
     --image-size 192 \
     --posemb learnable \
-    --pooling cls \
+    --pooling gap \
     --dropout 0.0 \
     --droppath 0.1 \
     --init-seed 0 \
