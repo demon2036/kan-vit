@@ -151,9 +151,9 @@ def get_layer_index_fn(path: tuple[DictKey, ...], _: Any, num_layers: int = 12) 
 
 def load_pretrained_params(args: argparse.Namespace, params: ArrayTree) -> ArrayTree:
     print(jax.process_index())
-    time.sleep(jax.process_index())
+    time.sleep(jax.process_index()*0.7)
 
-    with wds.gopen(args.pretrained_ckpt,bufsize=8192*2**4) as fp:
+    with wds.gopen(args.pretrained_ckpt,bufsize=8192*2**5) as fp:
         new_params = flax.serialization.msgpack_restore(fp.read())
 
     # The positional embeddings will be resized when there is a difference in image

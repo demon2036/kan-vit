@@ -46,20 +46,14 @@ def evaluate(state: TrainState, dataloader: DataLoader) -> dict[str, float]:
 
 
 def main(args: argparse.Namespace):
-
     state = create_train_state(args).replicate()
-    new_tx = create_optimizer(args, lr_decay=1.0)
-    state = state.replace_tx(tx=new_tx).replicate()
 
     # new_tx = create_optimizer(args, lr_decay=1.0)
     # state = create_train_state(args).replace(tx=new_tx).replicate()
 
-
     if jax.process_index() == 0:
-        wandb.init(name=args.name, project=args.project, config=args,settings=wandb.Settings(_disable_stats=True))
+        wandb.init(name=args.name, project=args.project, config=args, settings=wandb.Settings(_disable_stats=True))
     average_meter, max_val_acc1 = AverageMeter(use_latest=["learning_rate"]), 0.0
-
-
 
     train_dataloader, valid_dataloader = create_dataloaders(args)
     train_dataloader_iter = iter(train_dataloader)
@@ -70,23 +64,21 @@ def main(args: argparse.Namespace):
             state, metrics = training_step(state, batch)
             average_meter.update(**unreplicate(metrics))
 
-
-        if step==args.training_steps//2:
-            new_tx=create_optimizer(args,lr_decay=False)
-            state=state.replace(new_tx)
-
+        if step == args.training_steps // 3:
+            new_tx = create_optimizer(args, lr_decay=1.0)
+            state = state.replace_tx(tx=new_tx).replicate()
 
         if (
-            jax.process_index() == 0
-            and args.log_interval > 0
-            and step % args.log_interval == 0
+                jax.process_index() == 0
+                and args.log_interval > 0
+                and step % args.log_interval == 0
         ):
             metrics = average_meter.summary(prefix="train/")
             metrics["processed_samples"] = step * args.train_batch_size
             wandb.log(metrics, step)
 
         if args.eval_interval > 0 and (
-            step % args.eval_interval == 0 or step == args.training_steps
+                step % args.eval_interval == 0 or step == args.training_steps
         ):
             if jax.process_index() == 0:
                 params_bytes = msgpack_serialize(unreplicate(state.params))
