@@ -55,8 +55,6 @@ def main(args: argparse.Namespace):
     state = create_train_state(args).replace(tx=new_tx).replicate()
 
 
-
-
     if jax.process_index() == 0:
         wandb.init(name=args.name, project=args.project, config=args,settings=wandb.Settings(_disable_stats=True))
     average_meter, max_val_acc1 = AverageMeter(use_latest=["learning_rate"]), 0.0
