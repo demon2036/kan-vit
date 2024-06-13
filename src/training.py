@@ -69,6 +69,9 @@ class TrainState(train_state.TrainState):
             random_masking_rng=shard_prng_key(self.random_masking_rng),
         )
 
+    def replace_tx(self,tx):
+        return flax.jax_utils.unreplicate(self).replace(tx)
+
 
 class TrainModule(nn.Module):
     model: ViT

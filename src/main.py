@@ -49,7 +49,7 @@ def main(args: argparse.Namespace):
 
     state = create_train_state(args).replicate()
     new_tx = create_optimizer(args, lr_decay=False)
-    state = state.replace(tx=new_tx)
+    state = state.replace_tx(tx=new_tx).replicate()
 
 
 
