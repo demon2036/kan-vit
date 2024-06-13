@@ -58,7 +58,8 @@ class TrainState(train_state.TrainState):
         random_masking_rng, new_random_masking_rng = jax.random.split(self.random_masking_rng)
 
         rngs = {"mixup": mixup_rng, "dropout": dropout_rng, 'random_masking': random_masking_rng}
-        updates = {"mixup_rng": new_mixup_rng, "dropout_rng": new_dropout_rng, 'random_masking_rng': new_random_masking_rng}
+        updates = {"mixup_rng": new_mixup_rng, "dropout_rng": new_dropout_rng,
+                   'random_masking_rng': new_random_masking_rng}
         return rngs, updates
 
     def replicate(self) -> TrainState:
@@ -148,6 +149,42 @@ def validation_step(state: TrainState, batch: ArrayTree) -> ArrayTree:
     metrics["num_samples"] = batch[1] != -1
     metrics = jax.tree_map(lambda x: (x * (batch[1] != -1)).sum(), metrics)
     return jax.lax.psum(metrics, axis_name="batch")
+
+
+def create_optimizer(args, lr_decay=False):
+    @partial(optax.inject_hyperparams, hyperparam_dtype=jnp.float32)
+    def create_optimizer_fn(
+            learning_rate: optax.Schedule,
+    ) -> optax.GradientTransformation:
+        tx = OPTIMIZER_COLLECTION[args.optimizer](
+            learning_rate=learning_rate,
+            b1=args.adam_b1,
+            b2=args.adam_b2,
+            # eps=args.adam_eps,
+            weight_decay=args.weight_decay,
+            mask=partial(tree_map_with_path, lambda kp, *_: kp[-1].key == "kernel"),
+        )
+        if args.lr_decay < 1.0 and lr_decay:
+            layerwise_scales = {
+                i: optax.scale(args.lr_decay ** (args.layers - i))
+                for i in range(args.layers + 1)
+            }
+            label_fn = partial(get_layer_index_fn, num_layers=args.layers)
+            label_fn = partial(tree_map_with_path, label_fn)
+            tx = optax.chain(tx, optax.multi_transform(layerwise_scales, label_fn))
+        if args.clip_grad > 0:
+            tx = optax.chain(optax.clip_by_global_norm(args.clip_grad), tx)
+        return tx
+
+    learning_rate = optax.warmup_cosine_decay_schedule(
+        init_value=1e-6,
+        peak_value=args.learning_rate,
+        warmup_steps=args.warmup_steps,
+        decay_steps=args.training_steps,
+        end_value=1e-5,
+    )
+
+    return create_optimizer_fn(learning_rate)
 
 
 def create_train_state(args: argparse.Namespace) -> TrainState:

@@ -182,7 +182,7 @@ class ViT(ViTBase, nn.Module):
 class MAEBase:
     mask_ratio: int = 0.75
     decoder_dim: int = 512
-    decoder_layers: int = 8
+    decoder_layers: int = 1
     decoder_heads: int = 16
     decoder_posemb: Literal["learnable", "sincos2d"] = "learnable"
 
@@ -209,7 +209,7 @@ class MAE(ViTBase, MAEBase, nn.Module):
         )
 
         kwargs = self.kwargs
-        kwargs.update({'dim': self.decoder_dim, 'heads': self.decoder_heads,'layers':self.decoder_layers})
+        kwargs.update({'dim': self.decoder_dim, 'heads': self.decoder_heads, 'layers': self.decoder_layers})
         print(kwargs)
         self.decoder_layer = [layer_fn(**kwargs) for _ in range(self.decoder_layers)]
 
@@ -290,6 +290,43 @@ class EMATrainState(TrainState):
     trade_beta: int
     ema_decay: int = 0.995
     ema_params: Any = None
+
+
+def create_optimizer(learning_rate, weight_decay, warmup_steps, training_steps):
+    @partial(optax.inject_hyperparams, hyperparam_dtype=jnp.float32)
+    def create_optimizer_fn(
+            learning_rate: optax.Schedule,
+    ) -> optax.GradientTransformation:
+        tx = optax.lion(
+            learning_rate=learning_rate,
+            # b1=0.95,b2=0.98,
+            # eps=args.adam_eps,
+            weight_decay=weight_decay,
+            mask=partial(jax.tree_util.tree_map_with_path, lambda kp, *_: kp[-1].key == "kernel"),
+        )
+        if args.lr_decay < 1.0:
+            layerwise_scales = {
+                i: optax.scale(args.lr_decay ** (args.layers - i))
+                for i in range(args.layers + 1)
+            }
+            label_fn = partial(get_layer_index_fn, num_layers=args.layers)
+            label_fn = partial(tree_map_with_path, label_fn)
+            tx = optax.chain(tx, optax.multi_transform(layerwise_scales, label_fn))
+        if clip_grad > 0:
+            tx = optax.chain(optax.clip_by_global_norm(clip_grad), tx)
+        return tx
+
+    print(learning_rate, weight_decay, warmup_steps, training_steps)
+    learning_rate = optax.warmup_cosine_decay_schedule(
+        init_value=1e-6,
+        peak_value=learning_rate,
+        warmup_steps=warmup_steps,
+        decay_steps=training_steps,
+        end_value=1e-5,
+    )
+
+    tx = create_optimizer_fn(learning_rate)
+    return tx
 
 
 def create_train_state(rng,
@@ -375,6 +412,7 @@ def create_train_state(rng,
         decay_steps=training_steps,
         end_value=1e-5,
     )
+    """"""
 
     # learning_rate = optax.warmup_cosine_decay_schedule(
     #     init_value=1e-7,
@@ -384,7 +422,9 @@ def create_train_state(rng,
     #     end_value=1e-6,
     # )
 
-    tx = create_optimizer_fn(learning_rate)
+    # tx = create_optimizer_fn(learning_rate)
+
+    tx = create_optimizer(learning_rate, weight_decay, warmup_steps, training_steps)
 
     return EMATrainState.create(apply_fn=cnn.apply, params=params, tx=tx, ema_params=params, ema_decay=ema_decay,
                                 trade_beta=trade_beta, label_smoothing=label_smoothing)
@@ -392,7 +432,7 @@ def create_train_state(rng,
 
 if __name__ == "__main__":
     rng = jax.random.PRNGKey(1)
-    state = create_train_state(rng, warmup_steps=1000, training_steps=10000000, weight_decay=0.05, learning_rate=1e-3)
+    state = create_train_state(rng, layers=1,warmup_steps=1000, training_steps=10000000, weight_decay=0.05, learning_rate=1e-3)
     batch = 2
     image_shape = [batch, 32, 32, 3]
 
@@ -429,11 +469,40 @@ if __name__ == "__main__":
         # y = state.apply_fn({'params': params, }, x, rngs={'random_masking': rng})
         # return optax.losses.l2_loss(y, jnp.zeros_like(y)).mean()
 
-        out = state.apply_fn({'params': params, }, x, rngs={'random_masking': rng})
-        return out
+        loss, pred, mask = state.apply_fn({'params': params, }, x, rngs={'random_masking': rng})
+        return loss
 
 
-    loss(state.params)
+    # loss(state.params)
+    # state.opt_state
+
+    # state.replace()
+
+
+
+    old_opt_state = state.opt_state
+
+    grad = jax.grad(loss)(state.params)
+    state = state.apply_gradients(grads=grad)
+
+    # state.replace(opt_state=old_opt_state)
+
+    print(state.opt_state.hyperparams)
+    new_tx = create_optimizer(1e-5, 1, 0, 100)
+    state = state.replace(tx=new_tx)
+    print(state.opt_state)
+
+    grad = jax.grad(loss)(state.params)
+    state = state.apply_gradients(grads=grad)
+
+
+    # state.replace(opt_state=old_opt_state)
+
+    print(state.opt_state)
+
+    # state=state.replace(step=100)
+    # print(state.opt_state)
+
     """
     x, mask, ids_restore = loss(state.params)
    
