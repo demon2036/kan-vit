@@ -46,15 +46,14 @@ def evaluate(state: TrainState, dataloader: DataLoader) -> dict[str, float]:
 
 
 def main(args: argparse.Namespace):
+    if jax.process_index() == 0:
+        wandb.init(name=args.name, project=args.project, config=args,settings=wandb.Settings(_disable_stats=True))
+    average_meter, max_val_acc1 = AverageMeter(use_latest=["learning_rate"]), 0.0
+
     state = create_train_state(args).replicate()
 
     train_dataloader, valid_dataloader = create_dataloaders(args)
     train_dataloader_iter = iter(train_dataloader)
-
-
-    if jax.process_index() == 0:
-        wandb.init(name=args.name, project=args.project, config=args)
-    average_meter, max_val_acc1 = AverageMeter(use_latest=["learning_rate"]), 0.0
 
     for step in tqdm.trange(1, args.training_steps + 1, dynamic_ncols=True):
         for _ in range(args.grad_accum):
