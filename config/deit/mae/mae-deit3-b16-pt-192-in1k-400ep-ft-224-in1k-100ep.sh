@@ -14,7 +14,7 @@ python3 src/main.py \
     --auto-augment rand-m9-mstd0.5-inc1 \
     --random-erasing 0.0 \
     --augment-repeats 1 \
-    --test-crop-ratio 1.0 \
+    --test-crop-ratio 0.875 \
     --mixup 0.8 \
     --cutmix 1.0 \
     --criterion ce \
