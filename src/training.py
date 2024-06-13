@@ -69,7 +69,7 @@ class TrainState(train_state.TrainState):
             random_masking_rng=shard_prng_key(self.random_masking_rng),
         )
 
-    def replace_tx(self,tx):
+    def replace_tx(self, tx):
         return flax.jax_utils.unreplicate(self).replace(tx=tx)
 
 
@@ -155,6 +155,10 @@ def validation_step(state: TrainState, batch: ArrayTree) -> ArrayTree:
 
 
 def create_optimizer(args, lr_decay=None):
+    if lr_decay is None:
+        lr_decay=args.lr_decay
+    # lr_decay = lr_decay
+
     @partial(optax.inject_hyperparams, hyperparam_dtype=jnp.float32)
     def create_optimizer_fn(
             learning_rate: optax.Schedule,
@@ -167,10 +171,9 @@ def create_optimizer(args, lr_decay=None):
             weight_decay=args.weight_decay,
             mask=partial(tree_map_with_path, lambda kp, *_: kp[-1].key == "kernel"),
         )
-        if args.lr_decay < 1.0 :
-
-            if  lr_decay is None:
-                lr_decay=args.lr_decay
+        if args.lr_decay < 1.0:
+            # if  lr_decay is None:
+            #     lr_decay=args.lr_decay
 
             layerwise_scales = {
                 i: optax.scale(lr_decay ** (args.layers - i))
