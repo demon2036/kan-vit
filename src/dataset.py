@@ -124,7 +124,7 @@ def create_dataloaders(
             wds.detshuffle(),
 
             wds.split_by_worker,
-            wds.cached_tarfile_to_samples(handler=wds.ignore_and_continue, cache_dir='/root',),
+            wds.cached_tarfile_to_samples(handler=wds.ignore_and_continue, cache_dir='/root/test',),
             wds.detshuffle(),
             wds.decode("pil", handler=wds.ignore_and_continue),
             wds.to_tuple("jpg", "cls", handler=wds.ignore_and_continue),
@@ -146,7 +146,7 @@ def create_dataloaders(
             wds.SimpleShardList(args.valid_dataset_shards),
             wds.slice(jax.process_index(), None, jax.process_count()),
             wds.split_by_worker,
-            wds.cached_tarfile_to_samples(),
+            wds.cached_tarfile_to_samples(cache_dir='/root/test',),
             wds.decode("pil"),
             wds.to_tuple("jpg", "cls"),
             wds.map_tuple(valid_transform, torch.tensor),
