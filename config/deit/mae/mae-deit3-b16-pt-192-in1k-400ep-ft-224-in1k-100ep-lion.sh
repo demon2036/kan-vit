@@ -14,7 +14,7 @@ python3 src/main.py \
     --auto-augment rand-m9-mstd0.5-inc1 \
     --random-erasing 0.0 \
     --augment-repeats 1 \
-    --test-crop-ratio 1.0 \
+    --test-crop-ratio 0.875 \
     --mixup 0.8 \
     --cutmix 1.0 \
     --criterion ce \
@@ -35,12 +35,12 @@ python3 src/main.py \
     --dropout-seed 0 \
     --shuffle-seed 0 \
     --optimizer lion \
-    --learning-rate 1e-3 \
-    --weight-decay 0.2 \
+    --learning-rate 1e-4 \
+    --weight-decay 0.5 \
     --adam-b1 0.9 \
     --adam-b2 0.99 \
     --adam-eps 1e-8 \
-    --lr-decay 0.75 \
+    --lr-decay 0.65 \
     --clip-grad 0.0 \
     --grad-accum 1 \
     --warmup-steps $((1281167 * 5 / $train_batch_size)) \
