@@ -25,7 +25,7 @@ import jax.numpy as jnp
 from chex import Array
 from flax.training.train_state import TrainState
 
-from utils import fixed_sincos2d_embeddings
+from utils import fixed_sincos2d_embeddings, get_layer_index_fn
 from kan import KANLayer
 
 import optax
@@ -292,7 +292,7 @@ class EMATrainState(TrainState):
     ema_params: Any = None
 
 
-def create_optimizer(learning_rate, weight_decay, warmup_steps, training_steps):
+def create_optimizer(learning_rate, weight_decay, warmup_steps, training_steps,decay=True):
     @partial(optax.inject_hyperparams, hyperparam_dtype=jnp.float32)
     def create_optimizer_fn(
             learning_rate: optax.Schedule,
@@ -304,16 +304,19 @@ def create_optimizer(learning_rate, weight_decay, warmup_steps, training_steps):
             weight_decay=weight_decay,
             mask=partial(jax.tree_util.tree_map_with_path, lambda kp, *_: kp[-1].key == "kernel"),
         )
-        if args.lr_decay < 1.0:
+        from jax.tree_util import tree_map_with_path
+        if decay:
+            lr_decay=0.9
+            layers=12
+            # if args.lr_decay < 1.0:
             layerwise_scales = {
-                i: optax.scale(args.lr_decay ** (args.layers - i))
-                for i in range(args.layers + 1)
+                i: optax.scale(lr_decay ** (layers - i))
+                for i in range(layers + 1)
             }
-            label_fn = partial(get_layer_index_fn, num_layers=args.layers)
+            label_fn = partial(get_layer_index_fn, num_layers=layers)
             label_fn = partial(tree_map_with_path, label_fn)
             tx = optax.chain(tx, optax.multi_transform(layerwise_scales, label_fn))
-        if clip_grad > 0:
-            tx = optax.chain(optax.clip_by_global_norm(clip_grad), tx)
+            tx = optax.chain(optax.clip_by_global_norm(1), tx)
         return tx
 
     print(learning_rate, weight_decay, warmup_steps, training_steps)
@@ -381,7 +384,7 @@ def create_train_state(rng,
     # cnn.init({'params': rng, **rng_keys}, jnp.ones(image_shape))
 
     params = cnn.init({'params': rng, }, jnp.ones(image_shape))['params']
-
+    """
     @partial(optax.inject_hyperparams, hyperparam_dtype=jnp.float32)
     def create_optimizer_fn(
             learning_rate: optax.Schedule,
@@ -412,7 +415,7 @@ def create_train_state(rng,
         decay_steps=training_steps,
         end_value=1e-5,
     )
-    """"""
+    """
 
     # learning_rate = optax.warmup_cosine_decay_schedule(
     #     init_value=1e-7,
@@ -432,7 +435,8 @@ def create_train_state(rng,
 
 if __name__ == "__main__":
     rng = jax.random.PRNGKey(1)
-    state = create_train_state(rng, layers=1,warmup_steps=1000, training_steps=10000000, weight_decay=0.05, learning_rate=1e-3)
+    state = create_train_state(rng, layers=1, warmup_steps=1000, training_steps=10000000, weight_decay=0.05,
+                               learning_rate=1e-3)
     batch = 2
     image_shape = [batch, 32, 32, 3]
 
@@ -478,23 +482,20 @@ if __name__ == "__main__":
 
     # state.replace()
 
-
-
     old_opt_state = state.opt_state
 
-    grad = jax.grad(loss)(state.params)
-    state = state.apply_gradients(grads=grad)
+    # grad = jax.grad(loss)(state.params)
+    # state = state.apply_gradients(grads=grad)
 
     # state.replace(opt_state=old_opt_state)
 
     print(state.opt_state.hyperparams)
-    new_tx = create_optimizer(1e-5, 1, 0, 100)
+    new_tx = create_optimizer(1e-5, 1, 1, 100,decay=False)
     state = state.replace(tx=new_tx)
     print(state.opt_state)
 
     grad = jax.grad(loss)(state.params)
     state = state.apply_gradients(grads=grad)
-
 
     # state.replace(opt_state=old_opt_state)
 
