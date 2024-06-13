@@ -33,7 +33,7 @@ python3 src/main_pretrain_mae.py \
     --learning-rate 2.4e-3 \
     --weight-decay 0.05 \
     --adam-b1 0.9 \
-    --adam-b2 0.999 \
+    --adam-b2 0.95 \
     --adam-eps 1e-8 \
     --lr-decay 1.0 \
     --clip-grad 1.0 \
