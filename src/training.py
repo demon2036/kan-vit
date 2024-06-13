@@ -70,7 +70,7 @@ class TrainState(train_state.TrainState):
         )
 
     def replace_tx(self,tx):
-        return flax.jax_utils.unreplicate(self).replace(tx)
+        return flax.jax_utils.unreplicate(self).replace(tx=tx)
 
 
 class TrainModule(nn.Module):
