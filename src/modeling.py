@@ -276,8 +276,8 @@ class MAE(ViTBase, MAEBase, nn.Module):
     def forward_loss(self, x, pred, mask):
         target = einops.rearrange(x, 'b (h k1) (w k2) c->b (h w) (c k1 k2)', k1=self.patch_size, k2=self.patch_size)
 
-        mean = target.mean(axis=-1, keepdim=True)
-        var = target.var(axis=-1, keepdim=True)
+        mean = target.mean(axis=-1, keepdims=True)
+        var = target.var(axis=-1, keepdims=True)
         target = (target - mean) / (var + 1.e-6) ** .5
 
 
