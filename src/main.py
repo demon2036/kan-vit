@@ -64,9 +64,9 @@ def main(args: argparse.Namespace):
             state, metrics = training_step(state, batch)
             average_meter.update(**unreplicate(metrics))
 
-        if step == args.training_steps // 3:
-            new_tx = create_optimizer(args, lr_decay=1.0)
-            state = state.replace_tx(tx=new_tx).replicate()
+        # if step == args.training_steps // 3:
+        #     new_tx = create_optimizer(args, lr_decay=1.0)
+        #     state = state.replace_tx(tx=new_tx).replicate()
 
         if (
                 jax.process_index() == 0
