@@ -154,7 +154,7 @@ def validation_step(state: TrainState, batch: ArrayTree) -> ArrayTree:
     return jax.lax.psum(metrics, axis_name="batch")
 
 
-def create_optimizer(args, lr_decay=False):
+def create_optimizer(args, lr_decay=None):
     @partial(optax.inject_hyperparams, hyperparam_dtype=jnp.float32)
     def create_optimizer_fn(
             learning_rate: optax.Schedule,
@@ -167,9 +167,13 @@ def create_optimizer(args, lr_decay=False):
             weight_decay=args.weight_decay,
             mask=partial(tree_map_with_path, lambda kp, *_: kp[-1].key == "kernel"),
         )
-        if args.lr_decay < 1.0 and lr_decay:
+        if args.lr_decay < 1.0 :
+
+            if  lr_decay is None:
+                lr_decay=args.lr_decay
+
             layerwise_scales = {
-                i: optax.scale(args.lr_decay ** (args.layers - i))
+                i: optax.scale(lr_decay ** (args.layers - i))
                 for i in range(args.layers + 1)
             }
             label_fn = partial(get_layer_index_fn, num_layers=args.layers)

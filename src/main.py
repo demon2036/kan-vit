@@ -51,7 +51,7 @@ def main(args: argparse.Namespace):
     # new_tx = create_optimizer(args, lr_decay=False)
     # state = state.replace_tx(tx=new_tx).replicate()
 
-    new_tx = create_optimizer(args, lr_decay=False)
+    new_tx = create_optimizer(args, lr_decay=1.0)
     state = create_train_state(args).replace(tx=new_tx).replicate()
 
 

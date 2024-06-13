@@ -22,7 +22,9 @@ import einops
 import flax.linen as nn
 import flax.linen.initializers as init
 import jax.numpy as jnp
-from chex import Array
+from chex import Array, PRNGKey
+from flax.training import train_state
+from flax.training.common_utils import shard_prng_key
 from flax.training.train_state import TrainState
 
 from utils import fixed_sincos2d_embeddings, get_layer_index_fn
@@ -285,14 +287,37 @@ class MAE(ViTBase, MAEBase, nn.Module):
         return loss, pred, mask
 
 
-class EMATrainState(TrainState):
-    label_smoothing: int
-    trade_beta: int
-    ema_decay: int = 0.995
-    ema_params: Any = None
+class TrainState(train_state.TrainState):
+    mixup_rng: PRNGKey
+    dropout_rng: PRNGKey
+    random_masking_rng: PRNGKey
+
+    micro_step: int = 0
+    micro_in_mini: int = 1
+    grad_accum: ArrayTree | None = None
+
+    def split_rngs(self) -> tuple[ArrayTree, ArrayTree]:
+        mixup_rng, new_mixup_rng = jax.random.split(self.mixup_rng)
+        dropout_rng, new_dropout_rng = jax.random.split(self.dropout_rng)
+        random_masking_rng, new_random_masking_rng = jax.random.split(self.random_masking_rng)
+
+        rngs = {"mixup": mixup_rng, "dropout": dropout_rng, 'random_masking': random_masking_rng}
+        updates = {"mixup_rng": new_mixup_rng, "dropout_rng": new_dropout_rng,
+                   'random_masking_rng': new_random_masking_rng}
+        return rngs, updates
+
+    def replicate(self) -> TrainState:
+        return flax.jax_utils.replicate(self).replace(
+            mixup_rng=shard_prng_key(self.mixup_rng),
+            dropout_rng=shard_prng_key(self.dropout_rng),
+            random_masking_rng=shard_prng_key(self.random_masking_rng),
+        )
+
+    def replace_tx(self, tx):
+        return flax.jax_utils.unreplicate(self).replace(tx=tx)
 
 
-def create_optimizer(learning_rate, weight_decay, warmup_steps, training_steps,decay=True):
+def create_optimizer(learning_rate, weight_decay, warmup_steps, training_steps, decay=True):
     @partial(optax.inject_hyperparams, hyperparam_dtype=jnp.float32)
     def create_optimizer_fn(
             learning_rate: optax.Schedule,
@@ -306,8 +331,8 @@ def create_optimizer(learning_rate, weight_decay, warmup_steps, training_steps,d
         )
         from jax.tree_util import tree_map_with_path
         if decay:
-            lr_decay=0.9
-            layers=12
+            lr_decay = 1.0
+            layers = 12
             # if args.lr_decay < 1.0:
             layerwise_scales = {
                 i: optax.scale(lr_decay ** (layers - i))
@@ -352,7 +377,8 @@ def create_train_state(rng,
                        ema_decay=0.9999,
                        trade_beta=5.0,
                        label_smoothing=0.1,
-                       aux_rng_keys: list = ["random_masking"]
+                       aux_rng_keys: list = ["random_masking"],
+                       decay=True
 
                        ):
     """Creates initial `TrainState`."""
@@ -427,16 +453,25 @@ def create_train_state(rng,
 
     # tx = create_optimizer_fn(learning_rate)
 
-    tx = create_optimizer(learning_rate, weight_decay, warmup_steps, training_steps)
+    tx = create_optimizer(learning_rate, weight_decay, warmup_steps, training_steps, decay=decay)
 
-    return EMATrainState.create(apply_fn=cnn.apply, params=params, tx=tx, ema_params=params, ema_decay=ema_decay,
-                                trade_beta=trade_beta, label_smoothing=label_smoothing)
+    return TrainState.create(
+        apply_fn=cnn.apply,
+        params=params,
+        tx=tx,
+        mixup_rng=jax.random.PRNGKey(1 + jax.process_index()),
+        dropout_rng=jax.random.PRNGKey(2 + jax.process_index()),
+        random_masking_rng=jax.random.PRNGKey(3 + jax.process_index()),
+        micro_step=0,
+        micro_in_mini=1,
+        grad_accum=1 if 1 > 1 else None,
+    )
 
 
 if __name__ == "__main__":
     rng = jax.random.PRNGKey(1)
     state = create_train_state(rng, layers=1, warmup_steps=1000, training_steps=10000000, weight_decay=0.05,
-                               learning_rate=1e-3)
+                               learning_rate=1e-3).replicate()
     batch = 2
     image_shape = [batch, 32, 32, 3]
 
@@ -468,14 +503,30 @@ if __name__ == "__main__":
 """
 
 
-    @jax.jit
-    def loss(params):
-        # y = state.apply_fn({'params': params, }, x, rngs={'random_masking': rng})
-        # return optax.losses.l2_loss(y, jnp.zeros_like(y)).mean()
+    @partial(jax.pmap, axis_name="batch", )
+    def test(state):
+        def loss(params):
+            # y = state.apply_fn({'params': params, }, x, rngs={'random_masking': rng})
+            # return optax.losses.l2_loss(y, jnp.zeros_like(y)).mean()
 
-        loss, pred, mask = state.apply_fn({'params': params, }, x, rngs={'random_masking': rng})
-        return loss
+            loss, pred, mask = state.apply_fn({'params': params, }, x, rngs={'random_masking': rng})
+            return loss
 
+        grad = jax.grad(loss)(state.params)
+        state = state.apply_gradients(grads=grad)
+
+        return state
+
+
+    # print(state.opt_state)
+
+    new_tx = create_optimizer(1e-5, 1, 1, 100, decay=True)
+
+    new_state = create_train_state(rng, layers=1, warmup_steps=1000, training_steps=10000000, weight_decay=0.05,
+                                   learning_rate=1e-3, decay=False).replicate()
+
+    # print('\n'*5)
+    # print(new_state.opt_state)
 
     # loss(state.params)
     # state.opt_state
@@ -483,20 +534,17 @@ if __name__ == "__main__":
     # state.replace()
 
     old_opt_state = state.opt_state
-
+    state = test(state)
     # grad = jax.grad(loss)(state.params)
     # state = state.apply_gradients(grads=grad)
 
     # state.replace(opt_state=old_opt_state)
 
     print(state.opt_state.hyperparams)
-    new_tx = create_optimizer(1e-5, 1, 1, 100,decay=False)
-    state = state.replace(tx=new_tx)
-    print(state.opt_state)
 
-    grad = jax.grad(loss)(state.params)
-    state = state.apply_gradients(grads=grad)
-
+    state = new_state.replace(opt_state=state.opt_state)
+    # print(state.opt_state)
+    state = test(state)
     # state.replace(opt_state=old_opt_state)
 
     print(state.opt_state)
