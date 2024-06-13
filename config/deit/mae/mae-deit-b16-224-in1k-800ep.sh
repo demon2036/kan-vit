@@ -4,7 +4,7 @@ python3 src/main_pretrain_mae.py \
     --output-dir $GCS_MODEL_DIR/mae \
     --train-dataset-shards "$GCS_DATASET_DIR/imagenet-1k-wds/imagenet1k-train-{0000..1023}.tar" \
     --train-batch-size $train_batch_size \
-    --train-loader-workers 40 \
+    --train-loader-workers 80 \
     --random-crop rrc \
     --color-jitter 0.0 \
     --random-erasing 0.0 \

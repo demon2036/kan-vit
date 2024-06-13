@@ -124,7 +124,7 @@ def create_dataloaders(
             wds.detshuffle(),
 
             wds.split_by_worker,
-            wds.cached_tarfile_to_samples(handler=wds.ignore_and_continue),
+            wds.cached_tarfile_to_samples(handler=wds.ignore_and_continue, cache_dir='/root',),
             wds.detshuffle(),
             wds.decode("pil", handler=wds.ignore_and_continue),
             wds.to_tuple("jpg", "cls", handler=wds.ignore_and_continue),
