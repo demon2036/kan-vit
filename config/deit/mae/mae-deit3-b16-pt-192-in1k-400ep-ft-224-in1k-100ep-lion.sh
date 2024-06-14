@@ -1,4 +1,4 @@
-export train_batch_size=1024 warmup_epoch=5 epoch=100
+export train_batch_size=4096 warmup_epoch=5 epoch=100
 ## $GCS_MODEL_DIR/mae/mae-deit-b16-224-in1k-800ep-last.msgpack \
 python3 src/main.py \
     --output-dir $GCS_MODEL_DIR/mae \
