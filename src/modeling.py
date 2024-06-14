@@ -242,6 +242,8 @@ class MAE(ViTBase, MAEBase, nn.Module):
     def forward_encoder(self, x, det: bool = True):
         x = self.drop(self.embed(x), det)
 
+
+
         x, mask, ids_restore = self.random_masking(x)
 
         for layer in self.layer:

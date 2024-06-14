@@ -35,8 +35,8 @@ python3 src/main.py \
     --dropout-seed 0 \
     --shuffle-seed 0 \
     --optimizer lion \
-    --learning-rate 1e-4 \
-    --weight-decay 10 \
+    --learning-rate 2e-3 \
+    --weight-decay 2.0 \
     --adam-b1 0.9 \
     --adam-b2 0.99 \
     --adam-eps 1e-8 \
