@@ -243,12 +243,13 @@ class MAE(ViTBase, MAEBase, nn.Module):
         x = self.drop(self.embed(x), det)
 
         if self.pooling == "cls":
-            cls_token, x = x[:, 0], x[:, 1:]
+            cls_token, x = x[:, :1, :], x[:, 1:]
+
 
         x, mask, ids_restore = self.random_masking(x)
 
         if self.pooling == "cls":
-            x = jnp.concatenate([cls_token, x], axis=1)
+            x = jnp.concatenate((cls_token, x), axis=1)
 
         for layer in self.layer:
             x = layer(x, det)
@@ -262,7 +263,7 @@ class MAE(ViTBase, MAEBase, nn.Module):
         x = self.decoder_embed(x)
         # print(x.shape)
         if self.pooling == "cls":
-            cls_token, x = x[:, 0], x[:, 1:]
+            cls_token, x = x[:, :1, :], x[:, 1:]
 
         mask_tokens = jnp.tile(self.mask_token, (x.shape[0], ids_restore.shape[1] - x.shape[1], 1))
 
@@ -280,7 +281,8 @@ class MAE(ViTBase, MAEBase, nn.Module):
 
         x = self.decoder_norm(x)
         x = self.decoder_pred(x)
-
+        if self.pooling == "cls":
+            cls_token, x = x[:, :1, :], x[:, 1:]
         # print(mask_tokens.shape, x.shape)
         return x
 
@@ -488,6 +490,7 @@ def create_train_state(rng,
 if __name__ == "__main__":
     rng = jax.random.PRNGKey(1)
     state = create_train_state(rng, layers=1, warmup_steps=1000, training_steps=10000000, weight_decay=0.05,
+                               pooling='cls',
                                learning_rate=1e-3).replicate()
     batch = 2
     image_shape = [batch, 32, 32, 3]
