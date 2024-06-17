@@ -55,7 +55,7 @@ def auto_augment_factory(args: argparse.Namespace) -> T.Transform:
 
 def create_transforms(args: argparse.Namespace) -> tuple[nn.Module, nn.Module]:
     if args.random_crop == "rrc":
-        train_transforms = [T.RandomResizedCrop(args.image_size, interpolation=3)]
+        train_transforms = [T.RandomResizedCrop(args.image_size, scale=(0.2, 1), interpolation=3)]
     elif args.random_crop == "src":
         train_transforms = [
             T.Resize(args.image_size, interpolation=3),
@@ -98,7 +98,7 @@ def collate_and_pad(batch: list[Any], batch_size: int = 1) -> Any:
 
 
 def create_dataloaders(
-    args: argparse.Namespace,
+        args: argparse.Namespace,
 ) -> tuple[DataLoader | None, DataLoader | None]:
     train_dataloader, valid_dataloader = None, None
     train_transform, valid_transform = create_transforms(args)
@@ -124,7 +124,7 @@ def create_dataloaders(
             wds.detshuffle(),
 
             wds.split_by_worker,
-            wds.cached_tarfile_to_samples(handler=wds.ignore_and_continue, cache_dir='/root/test',),
+            wds.cached_tarfile_to_samples(handler=wds.ignore_and_continue, cache_dir='/root/test', ),
             wds.detshuffle(),
             wds.decode("pil", handler=wds.ignore_and_continue),
             wds.to_tuple("jpg", "cls", handler=wds.ignore_and_continue),
@@ -146,7 +146,7 @@ def create_dataloaders(
             wds.SimpleShardList(args.valid_dataset_shards),
             wds.slice(jax.process_index(), None, jax.process_count()),
             wds.split_by_worker,
-            wds.cached_tarfile_to_samples(cache_dir='/root/test',),
+            wds.cached_tarfile_to_samples(cache_dir='/root/test', ),
             wds.decode("pil"),
             wds.to_tuple("jpg", "cls"),
             wds.map_tuple(valid_transform, torch.tensor),
@@ -161,17 +161,3 @@ def create_dataloaders(
             persistent_workers=True,
         )
     return train_dataloader, valid_dataloader
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -57,7 +57,7 @@ class ViTBase:
     grad_ckpt: bool = False
     use_kan: bool = False
     polynomial_degree: int = 8
-    dtype:Any=jnp.bfloat16
+    dtype: Any = jnp.bfloat16
 
     @property
     def kwargs(self) -> dict[str, Any]:
@@ -106,9 +106,9 @@ class PatchEmbed(ViTBase, nn.Module):
 
 class Attention(ViTBase, nn.Module):
     def setup(self):
-        self.wq = DenseGeneral((self.heads, self.head_dim),dtype=self.dtype)
-        self.wk = DenseGeneral((self.heads, self.head_dim),dtype=self.dtype)
-        self.wv = DenseGeneral((self.heads, self.head_dim),dtype=self.dtype)
+        self.wq = DenseGeneral((self.heads, self.head_dim), dtype=self.dtype)
+        self.wk = DenseGeneral((self.heads, self.head_dim), dtype=self.dtype)
+        self.wv = DenseGeneral((self.heads, self.head_dim), dtype=self.dtype)
         self.wo = DenseGeneral(self.dim, axis=(-2, -1))
         self.drop = nn.Dropout(self.dropout)
 
@@ -120,8 +120,8 @@ class Attention(ViTBase, nn.Module):
 
 class FeedForward(ViTBase, nn.Module):
     def setup(self):
-        self.w1 = Dense(self.hidden_dim,dtype=self.dtype)
-        self.w2 = Dense(self.dim,dtype=self.dtype)
+        self.w1 = Dense(self.hidden_dim, dtype=self.dtype)
+        self.w2 = Dense(self.dim, dtype=self.dtype)
         self.drop = nn.Dropout(self.dropout)
 
     def __call__(self, x: Array, det: bool = True) -> Array:
@@ -242,8 +242,6 @@ class MAE(ViTBase, MAEBase, nn.Module):
     def forward_encoder(self, x, det: bool = True):
         x = self.drop(self.embed(x), det)
 
-
-
         x, mask, ids_restore = self.random_masking(x)
 
         for layer in self.layer:
@@ -281,7 +279,6 @@ class MAE(ViTBase, MAEBase, nn.Module):
         mean = target.mean(axis=-1, keepdims=True)
         var = target.var(axis=-1, keepdims=True)
         target = (target - mean) / (var + 1.e-6) ** .5
-
 
         loss = (pred - target) ** 2
         loss = loss.mean(axis=-1)
