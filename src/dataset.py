@@ -55,7 +55,7 @@ def auto_augment_factory(args: argparse.Namespace) -> T.Transform:
 
 def create_transforms(args: argparse.Namespace) -> tuple[nn.Module, nn.Module]:
     if args.random_crop == "rrc":
-        train_transforms = [T.RandomResizedCrop(args.image_size, scale=(0.2, 1), interpolation=3)]
+        train_transforms = [T.RandomResizedCrop(args.image_size,  interpolation=3)]
     elif args.random_crop == "src":
         train_transforms = [
             T.Resize(args.image_size, interpolation=3),
@@ -121,11 +121,11 @@ def create_dataloaders(
             wds.SimpleShardList(args.train_dataset_shards, seed=args.shuffle_seed),
             wds.slice(jax.process_index(), None, jax.process_count()),
             itertools.cycle,
-            wds.detshuffle(),
+            wds.detshuffle(seed=100),
 
             wds.split_by_worker,
             wds.cached_tarfile_to_samples(handler=wds.ignore_and_continue, cache_dir='/root/test', ),
-            wds.detshuffle(),
+            wds.detshuffle(seed=100),
             wds.decode("pil", handler=wds.ignore_and_continue),
             wds.to_tuple("jpg", "cls", handler=wds.ignore_and_continue),
             partial(repeat_samples, repeats=args.augment_repeats),
