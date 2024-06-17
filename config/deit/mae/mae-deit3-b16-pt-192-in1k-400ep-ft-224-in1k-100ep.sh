@@ -27,7 +27,7 @@ python3 src/main.py \
     --patch-size 16 \
     --image-size 224 \
     --posemb learnable \
-    --pooling gap \
+    --pooling cls \
     --dropout 0.0 \
     --droppath 0.1 \
     --init-seed 0 \

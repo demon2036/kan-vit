@@ -245,7 +245,6 @@ class MAE(ViTBase, MAEBase, nn.Module):
         if self.pooling == "cls":
             cls_token, x = x[:, :1, :], x[:, 1:]
 
-
         x, mask, ids_restore = self.random_masking(x)
 
         if self.pooling == "cls":
