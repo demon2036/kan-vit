@@ -81,7 +81,7 @@ def create_transforms(args: argparse.Namespace) -> tuple[nn.Module, nn.Module]:
         T.CenterCrop(args.image_size),
         T.PILToTensor(),
     ]
-    train_transforms = timm.data.create_transform(
+    train_transforms = [timm.data.create_transform(
         input_size=args.image_size,
         is_training=True,
         color_jitter=args.color_jitter,
@@ -92,7 +92,7 @@ def create_transforms(args: argparse.Namespace) -> tuple[nn.Module, nn.Module]:
         re_count=1,
         mean=(0, 0, 0),
         std=(1, 1, 1),
-    )
+    )]
     train_transforms += [T.PILToTensor()]
 
     valid_transforms = [
