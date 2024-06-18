@@ -28,6 +28,7 @@ import torch
 import torch.nn as nn
 import torchvision.transforms.v2 as T
 import webdataset as wds
+from timm.data import create_transform
 from timm.data.auto_augment import (
     augment_and_mix_transform,
     auto_augment_transform,
@@ -91,7 +92,7 @@ def create_transforms(args: argparse.Namespace) -> tuple[nn.Module, nn.Module]:
             interpolation='bicubic',
             re_prob=0.25,
             re_mode='pixel',
-            re_count=1, mean=(0, 0, 0), std=(1, 1, 1))
+            re_count=1, )
 
     ]
     valid_transforms = [

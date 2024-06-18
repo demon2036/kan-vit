@@ -25,6 +25,7 @@ import wandb
 from flax.jax_utils import unreplicate
 from flax.serialization import msgpack_serialize
 from flax.training.common_utils import shard
+from timm.data import Mixup
 from torch.utils.data import DataLoader
 
 from dataset import create_dataloaders
@@ -58,9 +59,29 @@ def main(args: argparse.Namespace):
     train_dataloader, valid_dataloader = create_dataloaders(args)
     train_dataloader_iter = iter(train_dataloader)
 
+
+    #
+    # parser.add_argument('--mixup', type=float, default=0,
+    #                     help='mixup alpha, mixup enabled if > 0.')
+    # parser.add_argument('--cutmix', type=float, default=0,
+    #                     help='cutmix alpha, cutmix enabled if > 0.')
+    # parser.add_argument('--cutmix_minmax', type=float, nargs='+', default=None,
+    #                     help='cutmix min/max ratio, overrides alpha and enables cutmix if set (default: None)')
+    # parser.add_argument('--mixup_prob', type=float, default=1.0,
+    #                     help='Probability of performing mixup or cutmix when either/both is enabled')
+    # parser.add_argument('--mixup_switch_prob', type=float, default=0.5,
+    #                     help='Probability of switching to cutmix when both mixup and cutmix enabled')
+    # parser.add_argument('--mixup_mode', type=str, default='batch',
+    #                     help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"')
+
+    mixup_fn = Mixup(
+        mixup_alpha=0.8, cutmix_alpha=1.0, cutmix_minmax=None,
+        prob=1.0, switch_prob=0.5, mode='batch',
+        label_smoothing=0.1, num_classes=1000)
+
     for step in tqdm.trange(1, args.training_steps + 1, dynamic_ncols=True):
         for _ in range(args.grad_accum):
-            batch = shard(jax.tree_map(np.asarray, next(train_dataloader_iter)))
+            batch = shard(jax.tree_map(np.asarray, mixup_fn(next(train_dataloader_iter))))
             state, metrics = training_step(state, batch)
             average_meter.update(**unreplicate(metrics))
 
