@@ -251,12 +251,15 @@ def create_train_state(args: argparse.Namespace) -> TrainState:
             weight_decay=args.weight_decay,
             mask=partial(tree_map_with_path, lambda kp, *_: kp[-1].key == "kernel"),
         )
+
+        num_layers = len(args.layers) + 1
+
         if args.lr_decay < 1.0:
             layerwise_scales = {
-                i: optax.scale(args.lr_decay ** (args.layers - i))
+                i: optax.scale(args.lr_decay ** (num_layers - i))
                 for i in range(args.layers + 1)
             }
-            label_fn = partial(get_layer_index_fn, num_layers=args.layers)
+            label_fn = partial(get_layer_index_fn, num_layers=num_layers)
             label_fn = partial(tree_map_with_path, label_fn)
             tx = optax.chain(tx, optax.multi_transform(layerwise_scales, label_fn))
         if args.clip_grad > 0:
