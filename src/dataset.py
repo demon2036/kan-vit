@@ -98,7 +98,7 @@ def create_transforms(args: argparse.Namespace) -> tuple[nn.Module, nn.Module]:
     valid_transforms = [
         T.Resize(int(args.image_size / args.test_crop_ratio), interpolation=PIL.Image.BICUBIC),
         T.CenterCrop(args.image_size),
-        T.PILToTensor(),
+        T.ToTensor(),
         T.Normalize(IMAGENET_DEFAULT_MEAN,IMAGENET_DEFAULT_STD),
         # T.PILToTensor(),
     ]
