@@ -21,8 +21,10 @@ from collections.abc import Iterator
 from functools import partial
 from typing import Any
 
+import PIL.Image
 import jax
 import numpy as np
+import timm.data
 import torch
 import torch.nn as nn
 import torchvision.transforms.v2 as T
@@ -55,7 +57,7 @@ def auto_augment_factory(args: argparse.Namespace) -> T.Transform:
 
 def create_transforms(args: argparse.Namespace) -> tuple[nn.Module, nn.Module]:
     if args.random_crop == "rrc":
-        train_transforms = [T.RandomResizedCrop(args.image_size,  interpolation=3)]
+        train_transforms = [T.RandomResizedCrop(args.image_size, interpolation=3)]
     elif args.random_crop == "src":
         train_transforms = [
             T.Resize(args.image_size, interpolation=3),
@@ -79,6 +81,27 @@ def create_transforms(args: argparse.Namespace) -> tuple[nn.Module, nn.Module]:
         T.CenterCrop(args.image_size),
         T.PILToTensor(),
     ]
+    train_transforms = timm.data.create_transform(
+        input_size=args.input_size,
+        is_training=True,
+        color_jitter=args.color_jitter,
+        auto_augment=args.aa,
+        interpolation='bicubic',
+        re_prob=0.25,
+        re_mode='pixel',
+        re_count=1,
+        mean=(0, 0, 0),
+        std=(1, 1, 1),
+    )
+    train_transforms += [T.PILToTensor()]
+
+    valid_transforms = [
+        T.Resize(int(args.image_size / args.test_crop_ratio), interpolation=PIL.Image.BICUBIC),
+        T.CenterCrop(args.image_size),
+        # T.Normalize(IMAGENET_DEFAULT_MEAN,IMAGENET_DEFAULT_STD)
+        T.PILToTensor(),
+    ]
+
     return T.Compose(train_transforms), T.Compose(valid_transforms)
 
 
