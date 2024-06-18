@@ -81,7 +81,8 @@ def main(args: argparse.Namespace):
 
     for step in tqdm.trange(1, args.training_steps + 1, dynamic_ncols=True):
         for _ in range(args.grad_accum):
-            batch = shard(jax.tree_map(np.asarray, mixup_fn(next(train_dataloader_iter))))
+            x,target=next(train_dataloader_iter)
+            batch = shard(jax.tree_map(np.asarray, mixup_fn(x,target)))
             state, metrics = training_step(state, batch)
             average_meter.update(**unreplicate(metrics))
 
