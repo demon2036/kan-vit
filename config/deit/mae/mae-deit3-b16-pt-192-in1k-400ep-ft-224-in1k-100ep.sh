@@ -7,7 +7,7 @@ python3 src/main.py \
     --valid-dataset-shards "$GCS_DATASET_DIR/imagenet-1k-wds/imagenet1k-validation-{00..63}.tar" \
     --train-batch-size $train_batch_size \
     --valid-batch-size 1024 \
-    --train-loader-workers 80 \
+    --train-loader-workers 40 \
     --valid-loader-workers 10 \
     --random-crop rrc \
     --color-jitter 0.0 \
@@ -32,7 +32,7 @@ python3 src/main.py \
     --init-seed 0 \
     --mixup-seed 0 \
     --dropout-seed 0 \
-    --shuffle-seed 0 \
+    --shuffle-seed 2 \
     --optimizer adamw \
     --learning-rate 2e-3 \
     --weight-decay 0.05 \
