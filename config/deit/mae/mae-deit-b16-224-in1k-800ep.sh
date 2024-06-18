@@ -18,7 +18,6 @@ python3 src/main_pretrain_mae.py \
     --dim 768 \
     --heads 12 \
     --labels 1000 \
-    --layerscale \
     --patch-size 16 \
     --image-size 224 \
     --posemb learnable \
