@@ -252,7 +252,7 @@ def create_train_state(args: argparse.Namespace) -> TrainState:
             mask=partial(tree_map_with_path, lambda kp, *_: kp[-1].key == "kernel"),
         )
 
-        num_layers = len(args.layers) + 1
+        num_layers = args.layers + 1
 
         if args.lr_decay < 1.0:
             layerwise_scales = {
