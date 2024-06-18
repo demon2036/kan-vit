@@ -85,7 +85,7 @@ def create_transforms(args: argparse.Namespace) -> tuple[nn.Module, nn.Module]:
         input_size=args.image_size,
         is_training=True,
         color_jitter=args.color_jitter,
-        auto_augment=args.aa,
+        auto_augment=args.auto_augment,
         interpolation='bicubic',
         re_prob=0.25,
         re_mode='pixel',
