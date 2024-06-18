@@ -21,6 +21,7 @@ from collections.abc import Iterator
 from functools import partial
 from typing import Any
 
+import PIL
 import jax
 import numpy as np
 import torch
@@ -55,7 +56,7 @@ def auto_augment_factory(args: argparse.Namespace) -> T.Transform:
 
 def create_transforms(args: argparse.Namespace) -> tuple[nn.Module, nn.Module]:
     if args.random_crop == "rrc":
-        train_transforms = [T.RandomResizedCrop(args.image_size,  interpolation=3)]
+        train_transforms = [T.RandomResizedCrop(args.image_size, interpolation=3)]
     elif args.random_crop == "src":
         train_transforms = [
             T.Resize(args.image_size, interpolation=3),
@@ -79,6 +80,28 @@ def create_transforms(args: argparse.Namespace) -> tuple[nn.Module, nn.Module]:
         T.CenterCrop(args.image_size),
         T.PILToTensor(),
     ]
+
+    train_transforms = [
+        T.ToPILImage(),
+        create_transform(
+            input_size=args.image_size,
+            is_training=True,
+            color_jitter=0,
+            auto_augment=args.auto_augment,
+            interpolation='bicubic',
+            re_prob=0.25,
+            re_mode='pixel',
+            re_count=1, mean=(0, 0, 0), std=(1, 1, 1))
+
+    ]
+    valid_transforms = [
+        T.ToPILImage(),
+        T.Resize(256, interpolation=PIL.Image.BICUBIC),
+        T.CenterCrop(224),
+        T.ToTensor(),
+        T.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)
+    ]
+
     return T.Compose(train_transforms), T.Compose(valid_transforms)
 
 
