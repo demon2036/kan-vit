@@ -21,10 +21,8 @@ from collections.abc import Iterator
 from functools import partial
 from typing import Any
 
-import PIL.Image
 import jax
 import numpy as np
-import timm.data
 import torch
 import torch.nn as nn
 import torchvision.transforms.v2 as T
@@ -57,7 +55,7 @@ def auto_augment_factory(args: argparse.Namespace) -> T.Transform:
 
 def create_transforms(args: argparse.Namespace) -> tuple[nn.Module, nn.Module]:
     if args.random_crop == "rrc":
-        train_transforms = [T.RandomResizedCrop(args.image_size, interpolation=3)]
+        train_transforms = [T.RandomResizedCrop(args.image_size, scale=(0.2, 1), interpolation=3)]
     elif args.random_crop == "src":
         train_transforms = [
             T.Resize(args.image_size, interpolation=3),
@@ -81,28 +79,6 @@ def create_transforms(args: argparse.Namespace) -> tuple[nn.Module, nn.Module]:
         T.CenterCrop(args.image_size),
         T.PILToTensor(),
     ]
-    train_transforms = [timm.data.create_transform(
-        input_size=args.image_size,
-        is_training=True,
-        color_jitter=args.color_jitter,
-        auto_augment=args.auto_augment,
-        interpolation='bicubic',
-        re_prob=0.25,
-        re_mode='pixel',
-        re_count=1,
-        # mean=(0, 0, 0),
-        # std=(1, 1, 1),
-    )]
-    train_transforms += [T.PILToTensor()]
-
-    valid_transforms = [
-        T.Resize(int(args.image_size / args.test_crop_ratio), interpolation=PIL.Image.BICUBIC),
-        T.CenterCrop(args.image_size),
-        T.ToTensor(),
-        T.Normalize(IMAGENET_DEFAULT_MEAN,IMAGENET_DEFAULT_STD),
-        # T.PILToTensor(),
-    ]
-
     return T.Compose(train_transforms), T.Compose(valid_transforms)
 
 
@@ -128,33 +104,33 @@ def create_dataloaders(
     train_transform, valid_transform = create_transforms(args)
 
     if args.train_dataset_shards is not None:
+        dataset = wds.DataPipeline(
+            wds.SimpleShardList(args.train_dataset_shards, seed=args.shuffle_seed),
+            itertools.cycle,
+            wds.detshuffle(),
+            wds.slice(jax.process_index(), None, jax.process_count()),
+            wds.split_by_worker,
+            wds.tarfile_to_samples(handler=wds.ignore_and_continue),
+            wds.detshuffle(),
+            wds.decode("pil", handler=wds.ignore_and_continue),
+            wds.to_tuple("jpg", "cls", handler=wds.ignore_and_continue),
+            partial(repeat_samples, repeats=args.augment_repeats),
+            wds.map_tuple(train_transform, torch.tensor),
+        )
         # dataset = wds.DataPipeline(
         #     wds.SimpleShardList(args.train_dataset_shards, seed=args.shuffle_seed),
+        #     wds.slice(jax.process_index(), None, jax.process_count()),
         #     itertools.cycle,
         #     wds.detshuffle(),
-        #     wds.slice(jax.process_index(), None, jax.process_count()),
+        #
         #     wds.split_by_worker,
-        #     wds.tarfile_to_samples(handler=wds.ignore_and_continue),
+        #     wds.cached_tarfile_to_samples(handler=wds.ignore_and_continue, cache_dir='/root/test', ),
         #     wds.detshuffle(),
         #     wds.decode("pil", handler=wds.ignore_and_continue),
         #     wds.to_tuple("jpg", "cls", handler=wds.ignore_and_continue),
         #     partial(repeat_samples, repeats=args.augment_repeats),
         #     wds.map_tuple(train_transform, torch.tensor),
         # )
-        dataset = wds.DataPipeline(
-            wds.SimpleShardList(args.train_dataset_shards, seed=args.shuffle_seed),
-            wds.slice(jax.process_index(), None, jax.process_count()),
-            itertools.cycle,
-            wds.detshuffle(seed=100),
-
-            wds.split_by_worker,
-            wds.cached_tarfile_to_samples(handler=wds.ignore_and_continue, cache_dir='/root/test', ),
-            wds.detshuffle(seed=100),
-            wds.decode("pil", handler=wds.ignore_and_continue),
-            wds.to_tuple("jpg", "cls", handler=wds.ignore_and_continue),
-            partial(repeat_samples, repeats=args.augment_repeats),
-            wds.map_tuple(train_transform, torch.tensor),
-        )
 
         train_dataloader = DataLoader(
             dataset,
