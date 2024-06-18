@@ -90,8 +90,8 @@ def create_transforms(args: argparse.Namespace) -> tuple[nn.Module, nn.Module]:
         re_prob=0.25,
         re_mode='pixel',
         re_count=1,
-        mean=(0, 0, 0),
-        std=(1, 1, 1),
+        # mean=(0, 0, 0),
+        # std=(1, 1, 1),
     )]
     train_transforms += [T.PILToTensor()]
 
