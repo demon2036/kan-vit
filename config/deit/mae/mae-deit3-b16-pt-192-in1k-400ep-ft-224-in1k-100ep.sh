@@ -34,12 +34,12 @@ python3 src/main.py \
     --dropout-seed 0 \
     --shuffle-seed 2 \
     --optimizer adamw \
-    --learning-rate 2e-3 \
+    --learning-rate 4e-3 \
     --weight-decay 0.05 \
     --adam-b1 0.9 \
     --adam-b2 0.999 \
     --adam-eps 1e-8 \
-    --lr-decay 0.65 \
+    --lr-decay 0.75 \
     --clip-grad 0.0 \
     --grad-accum 1 \
     --warmup-steps $((1281167 * 5 / $train_batch_size)) \
