@@ -82,7 +82,7 @@ def create_transforms(args: argparse.Namespace) -> tuple[nn.Module, nn.Module]:
         T.PILToTensor(),
     ]
     train_transforms = timm.data.create_transform(
-        input_size=args.input_size,
+        input_size=args.image_size,
         is_training=True,
         color_jitter=args.color_jitter,
         auto_augment=args.aa,
