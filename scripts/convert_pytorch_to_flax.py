@@ -36,14 +36,14 @@ def main(args: argparse.Namespace):
     pos_embed = state_dict["pos_embed"][:, 1:, :].squeeze(0)
     pos_embed = pos_embed.unflatten(0, (int(pos_embed.size(0) ** 0.5), -1))
     wte = state_dict["patch_embed.proj.weight"].permute(2, 3, 1, 0)
-
+    print(state_dict.keys())
     params = {
         "model.embed.cls_token": cls_token,
         "model.embed.wpe": pos_embed,
         "model.embed.wte.kernel": wte,
         "model.embed.wte.bias": state_dict["patch_embed.proj.bias"],
-        "model.norm.scale": state_dict["norm.weight"],
-        "model.norm.bias": state_dict["norm.bias"],
+        "model.norm.scale": state_dict["fc_norm.weight"],
+        "model.norm.bias": state_dict["fc_norm.bias"],
     }
     if "head.weight" in state_dict and not args.exclude_heads:
         params["model.head.kernel"] = state_dict["head.weight"].transpose(1, 0)
