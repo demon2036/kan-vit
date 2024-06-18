@@ -74,15 +74,16 @@ def main(args: argparse.Namespace):
     # parser.add_argument('--mixup_mode', type=str, default='batch',
     #                     help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"')
 
-    mixup_fn = Mixup(
-        mixup_alpha=0.8, cutmix_alpha=1.0, cutmix_minmax=None,
-        prob=1.0, switch_prob=0.5, mode='batch',
-        label_smoothing=0.1, num_classes=1000)
+    # mixup_fn = Mixup(
+    #     mixup_alpha=0.8, cutmix_alpha=1.0, cutmix_minmax=None,
+    #     prob=1.0, switch_prob=0.5, mode='batch',
+    #     label_smoothing=0.1, num_classes=1000)
 
     for step in tqdm.trange(1, args.training_steps + 1, dynamic_ncols=True):
         for _ in range(args.grad_accum):
-            x,target=next(train_dataloader_iter)
-            batch = shard(jax.tree_map(np.asarray, mixup_fn(x,target)))
+            # x,target=next(train_dataloader_iter)
+            # batch = shard(jax.tree_map(np.asarray, mixup_fn(x,target)))
+            batch = shard(jax.tree_map(np.asarray, next(train_dataloader_iter)))
             state, metrics = training_step(state, batch)
             average_meter.update(**unreplicate(metrics))
 
