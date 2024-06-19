@@ -94,8 +94,8 @@ def main(args: argparse.Namespace):
 
         layer_idx += 1
 
-    for k, v in params.items():
-        print(k, v.shape)
+    # for k, v in params.items():
+    #     print(k, v.shape)
 
     with open(args.checkpoint.replace(".pth", ".msgpack"), "wb") as fp:
         params = {k: v.numpy() for k, v in params.items()}
