@@ -97,7 +97,7 @@ def create_transforms(args: argparse.Namespace) -> tuple[nn.Module, nn.Module]:
     ]
     valid_transforms = [
         T.ToPILImage(),
-        T.Resize(224, interpolation=PIL.Image.BICUBIC),
+        T.Resize(224),
         T.CenterCrop(224),
         T.ToTensor(),
         T.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)
