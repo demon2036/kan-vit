@@ -42,8 +42,8 @@ def main(args: argparse.Namespace):
         "model.embed.wpe": pos_embed,
         "model.embed.wte.kernel": wte,
         "model.embed.wte.bias": state_dict["patch_embed.proj.bias"],
-        "model.norm.scale": state_dict["fc_norm.weight"],
-        "model.norm.bias": state_dict["fc_norm.bias"],
+        "model.norm.scale": state_dict["norm.weight"],#state_dict["fc_norm.weight"],
+        "model.norm.bias": state_dict["norm.bias"],# state_dict["fc_norm.bias"],
     }
     if "head.weight" in state_dict and not args.exclude_heads:
         params["model.head.kernel"] = state_dict["head.weight"].transpose(1, 0)
