@@ -7,7 +7,7 @@ python3 src/main.py \
     --valid-dataset-shards "$GCS_DATASET_DIR/imagenet-1k-wds/imagenet1k-validation-{00..63}.tar" \
     --train-batch-size $train_batch_size \
     --valid-batch-size 1024 \
-    --train-loader-workers 20 \
+    --train-loader-workers 15 \
     --valid-loader-workers 10 \
     --random-crop rrc \
     --color-jitter 0.0 \
