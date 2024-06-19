@@ -49,7 +49,6 @@ def evaluate(state: TrainState, dataloader: DataLoader) -> dict[str, float]:
 def main(args: argparse.Namespace):
     state = create_train_state(args).replicate()
 
-
     # new_tx = create_optimizer(args, lr_decay=1.0)
     # state = create_train_state(args).replace(tx=new_tx).replicate()
 
@@ -59,6 +58,10 @@ def main(args: argparse.Namespace):
 
     train_dataloader, valid_dataloader = create_dataloaders(args)
     train_dataloader_iter = iter(train_dataloader)
+
+
+
+
 
     metrics = evaluate(state, valid_dataloader)
     if jax.process_index() == 0:
