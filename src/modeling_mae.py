@@ -119,8 +119,8 @@ class PatchEmbed(ViTBase, nn.Module):
             cls_token = jnp.repeat(self.cls_token, x.shape[0], axis=0)
             x = jnp.concatenate((cls_token, x), axis=1)
 
-        print(x.shape,self.wpe.shape)
         x = x + self.wpe
+
 
         return x
 

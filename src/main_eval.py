@@ -49,6 +49,7 @@ def evaluate(state: TrainState, dataloader: DataLoader) -> dict[str, float]:
 def main(args: argparse.Namespace):
     state = create_train_state(args).replicate()
 
+
     # new_tx = create_optimizer(args, lr_decay=1.0)
     # state = create_train_state(args).replace(tx=new_tx).replicate()
 
