@@ -167,7 +167,7 @@ class ViT(ViTBase, nn.Module):
         x = self.drop(self.embed(x), det)
         for layer in self.layer:
             x = layer(x, det)
-        x = self.norm(x)
+        # x = self.norm(x)
 
         # If the classification head is not defined, then return the output of all
         # tokens instead of pooling to a single vector and then calculate class logits.
@@ -177,7 +177,9 @@ class ViT(ViTBase, nn.Module):
         if self.pooling == "cls":
             x = x[:, 0, :]
         elif self.pooling == "gap":
-            x = x.mean(1)
+            # x = x.mean(1)
+            x=x[:,1:,:]
+            x = self.norm(x)
         return self.head(x)
 
 
