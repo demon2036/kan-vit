@@ -26,7 +26,7 @@ python3 src/main_eval.py \
     --patch-size 16 \
     --image-size 224 \
     --posemb sincos2d \
-    --pooling cls \
+    --pooling gap \
     --dropout 0.0 \
     --droppath 0.1 \
     --init-seed 0 \
