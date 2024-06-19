@@ -59,7 +59,7 @@ class ViTBase:
     grad_ckpt: bool = False
     use_kan: bool = False
     polynomial_degree: int = 8
-    dtype: Any = jnp.float32
+    dtype: Any = jnp.bfloat16
 
     @property
     def kwargs(self) -> dict[str, Any]:
@@ -84,7 +84,7 @@ class PatchEmbed(ViTBase, nn.Module):
             self.dim,
             kernel_size=(self.patch_size, self.patch_size),
             strides=(self.patch_size, self.patch_size),
-            padding="VALID",
+            padding="VALID",dtype=self.dtype
         )
         # if self.pooling == "cls":
         #     self.cls_token = self.param(
@@ -93,7 +93,7 @@ class PatchEmbed(ViTBase, nn.Module):
 
         if self.use_cls_token:
             self.cls_token = self.param(
-                "cls_token", init.truncated_normal(0.02), (1, 1, self.dim)
+                "cls_token", init.truncated_normal(0.02), (1, 1, self.dim),dtype=self.dtype
             )
 
         if self.posemb == "learnable":
@@ -102,7 +102,7 @@ class PatchEmbed(ViTBase, nn.Module):
             # )
 
             self.wpe = self.param(
-                "wpe", init.truncated_normal(0.02), (1,self.num_patches[0]*self.num_patches[1]+1, self.dim)
+                "wpe", init.truncated_normal(0.02), (1,self.num_patches[0]*self.num_patches[1]+1, self.dim),dtype=self.dtype
             )
 
 
@@ -157,8 +157,8 @@ class ViTLayer(ViTBase, nn.Module):
         else:
             self.ff = FeedForward(**self.kwargs)
 
-        self.norm1 = nn.LayerNorm()
-        self.norm2 = nn.LayerNorm()
+        self.norm1 = nn.LayerNorm(dtype=self.dtype)
+        self.norm2 = nn.LayerNorm(dtype=self.dtype)
         self.drop = nn.Dropout(self.droppath, broadcast_dims=(1, 2))
 
         self.scale1 = self.scale2 = 1.0
@@ -181,8 +181,8 @@ class ViT(ViTBase, nn.Module):
         layer_fn = nn.remat(ViTLayer) if self.grad_ckpt else ViTLayer
         self.layer = [layer_fn(**self.kwargs) for _ in range(self.layers)]
 
-        self.norm = nn.LayerNorm()
-        self.head = Dense(self.labels) if self.labels is not None else None
+        self.norm = nn.LayerNorm(dtype=self.dtype)
+        self.head = Dense(self.labels,dtype=self.dtype) if self.labels is not None else None
 
     def __call__(self, x: Array, det: bool = True) -> Array:
         x = self.drop(self.embed(x), det)
@@ -201,7 +201,9 @@ class ViT(ViTBase, nn.Module):
             # x = x.mean(1)
             x = x[:, 1:, :].mean(1)
             x = self.norm(x)
-        return self.head(x)
+        x=self.head(x)
+        print(x.dtype)
+        return x
 
 
 @dataclass

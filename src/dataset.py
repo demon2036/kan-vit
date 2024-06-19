@@ -87,7 +87,7 @@ def create_transforms(args: argparse.Namespace) -> tuple[nn.Module, nn.Module]:
         create_transform(
             input_size=args.image_size,
             is_training=True,
-            color_jitter=0,
+            color_jitter=None,
             auto_augment=args.auto_augment,
             interpolation='bicubic',
             re_prob=0.25,
@@ -97,7 +97,7 @@ def create_transforms(args: argparse.Namespace) -> tuple[nn.Module, nn.Module]:
     ]
     valid_transforms = [
         T.ToPILImage(),
-        T.Resize(224),
+        T.Resize(256,interpolation=3),
         T.CenterCrop(224),
         T.ToTensor(),
         T.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)
@@ -128,38 +128,38 @@ def create_dataloaders(
     train_transform, valid_transform = create_transforms(args)
 
     if args.train_dataset_shards is not None:
-        # dataset = wds.DataPipeline(
-        #     wds.SimpleShardList(args.train_dataset_shards, seed=args.shuffle_seed),
-        #     itertools.cycle,
-        #     wds.detshuffle(),
-        #     wds.slice(jax.process_index(), None, jax.process_count()),
-        #     wds.split_by_worker,
-        #     wds.tarfile_to_samples(handler=wds.ignore_and_continue),
-        #     wds.detshuffle(),
-        #     wds.decode("pil", handler=wds.ignore_and_continue),
-        #     wds.to_tuple("jpg", "cls", handler=wds.ignore_and_continue),
-        #     partial(repeat_samples, repeats=args.augment_repeats),
-        #     wds.map_tuple(train_transform, torch.tensor),
-        # )
         dataset = wds.DataPipeline(
             wds.SimpleShardList(args.train_dataset_shards, seed=args.shuffle_seed),
-            wds.slice(jax.process_index(), None, jax.process_count()),
             itertools.cycle,
             wds.detshuffle(),
+            wds.slice(jax.process_index(), None, jax.process_count()),
             wds.split_by_worker,
-            wds.cached_tarfile_to_samples(handler=wds.ignore_and_continue, cache_dir='/root/test', ),
+            wds.tarfile_to_samples(handler=wds.ignore_and_continue),
             wds.detshuffle(),
             wds.decode("pil", handler=wds.ignore_and_continue),
             wds.to_tuple("jpg", "cls", handler=wds.ignore_and_continue),
             partial(repeat_samples, repeats=args.augment_repeats),
             wds.map_tuple(train_transform, torch.tensor),
         )
+        # dataset = wds.DataPipeline(
+        #     wds.SimpleShardList(args.train_dataset_shards, seed=args.shuffle_seed),
+        #     wds.slice(jax.process_index(), None, jax.process_count()),
+        #     itertools.cycle,
+        #     wds.detshuffle(),
+        #     wds.split_by_worker,
+        #     wds.cached_tarfile_to_samples(handler=wds.ignore_and_continue, cache_dir='/root/test', ),
+        #     wds.detshuffle(),
+        #     wds.decode("pil", handler=wds.ignore_and_continue),
+        #     wds.to_tuple("jpg", "cls", handler=wds.ignore_and_continue),
+        #     partial(repeat_samples, repeats=args.augment_repeats),
+        #     wds.map_tuple(train_transform, torch.tensor),
+        # )
 
         train_dataloader = DataLoader(
             dataset,
             batch_size=args.train_batch_size // jax.process_count() // args.grad_accum,
             num_workers=args.train_loader_workers,
-            collate_fn=partial(collate_and_shuffle, repeats=args.augment_repeats),
+            # collate_fn=partial(collate_and_shuffle, repeats=args.augment_repeats),
             drop_last=True,
             prefetch_factor=20,
             persistent_workers=True,
