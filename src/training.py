@@ -90,9 +90,9 @@ class TrainModule(nn.Module):
         labels = nn.one_hot(labels, self.model.labels) if labels.ndim == 1 else labels
         labels = labels.astype(jnp.float32)
 
-        # if not det:
-        #     labels = optax.smooth_labels(labels, self.label_smoothing)
-        #     images, labels = self.mixup(images, labels)
+        if not det:
+            labels = optax.smooth_labels(labels, self.label_smoothing)
+            images, labels = self.mixup(images, labels)
 
         loss = self.criterion((logits := self.model(images, det=det)), labels)
         labels = labels == labels.max(-1, keepdims=True)
