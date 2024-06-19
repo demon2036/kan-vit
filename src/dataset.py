@@ -135,7 +135,7 @@ def create_dataloaders(
             wds.slice(jax.process_index(), None, jax.process_count()),
             wds.split_by_worker,
             wds.tarfile_to_samples(handler=wds.ignore_and_continue),
-            wds.detshuffle(),
+            wds.detshuffle(bufsize=100000),
             wds.decode("pil", handler=wds.ignore_and_continue),
             wds.to_tuple("jpg", "cls", handler=wds.ignore_and_continue),
             # partial(repeat_samples, repeats=args.augment_repeats),
