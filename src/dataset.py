@@ -97,7 +97,7 @@ def create_transforms(args: argparse.Namespace) -> tuple[nn.Module, nn.Module]:
     ]
     valid_transforms = [
         T.ToPILImage(),
-        T.Resize(256,interpolation=3),
+        T.Resize(256, interpolation=3),
         T.CenterCrop(224),
         T.ToTensor(),
         T.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)
@@ -147,10 +147,10 @@ def create_dataloaders(
             itertools.cycle,
             wds.detshuffle(),
             wds.split_by_worker,
-            wds.cached_tarfile_to_samples(handler=wds.ignore_and_continue, cache_dir='/root/test', ),
-            wds.detshuffle(bufsize=30000,initial=1000),
-            wds.decode("pil", handler=wds.ignore_and_continue),
-            wds.to_tuple("jpg", "cls", handler=wds.ignore_and_continue),
+            wds.cached_tarfile_to_samples(handler=wds.warn_and_stop, cache_dir='/root/test', ),
+            wds.detshuffle(bufsize=30000, initial=1000),
+            wds.decode("pil", handler=wds.warn_and_stop),
+            wds.to_tuple("jpg", "cls", handler=wds.warn_and_stop),
             partial(repeat_samples, repeats=args.augment_repeats),
             wds.map_tuple(train_transform, torch.tensor),
         )
