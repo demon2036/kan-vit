@@ -190,7 +190,7 @@ class ViT(ViTBase, nn.Module):
             x = x[:, 0, :]
         elif self.pooling == "gap":
             # x = x.mean(1)
-            x = x[:, 1:, :].mean()
+            x = x[:, 1:, :].mean(1)
             x = self.norm(x)
         return self.head(x)
 
