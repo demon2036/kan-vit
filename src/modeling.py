@@ -47,6 +47,8 @@ class ViTBase:
     labels: int | None = 1000
     layerscale: bool = False
 
+    use_cls_token: bool = True
+
     patch_size: int = 16
     image_size: int = 224
     posemb: Literal["learnable", "sincos2d"] = "learnable"
@@ -84,7 +86,12 @@ class PatchEmbed(ViTBase, nn.Module):
             strides=(self.patch_size, self.patch_size),
             padding="VALID",
         )
-        if self.pooling == "cls":
+        # if self.pooling == "cls":
+        #     self.cls_token = self.param(
+        #         "cls_token", init.truncated_normal(0.02), (1, 1, self.dim)
+        #     )
+
+        if self.use_cls_token:
             self.cls_token = self.param(
                 "cls_token", init.truncated_normal(0.02), (1, 1, self.dim)
             )
@@ -98,9 +105,14 @@ class PatchEmbed(ViTBase, nn.Module):
 
     def __call__(self, x: Array) -> Array:
         x = (self.wte(x) + self.wpe).reshape(x.shape[0], -1, self.dim)
-        if self.pooling == "cls":
+        # if self.pooling == "cls":
+        #     cls_token = jnp.repeat(self.cls_token, x.shape[0], axis=0)
+        #     x = jnp.concatenate((cls_token, x), axis=1)
+
+        if self.use_cls_token:
             cls_token = jnp.repeat(self.cls_token, x.shape[0], axis=0)
             x = jnp.concatenate((cls_token, x), axis=1)
+
         return x
 
 
@@ -178,7 +190,7 @@ class ViT(ViTBase, nn.Module):
             x = x[:, 0, :]
         elif self.pooling == "gap":
             # x = x.mean(1)
-            x = x[:, 1:, :]
+            x = x[:, 1:, :].mean()
             x = self.norm(x)
         return self.head(x)
 
