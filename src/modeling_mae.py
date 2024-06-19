@@ -215,7 +215,7 @@ class ViT(ViTBase, nn.Module):
 class MAEBase:
     mask_ratio: int = 0.75
     decoder_dim: int = 512
-    decoder_layers: int = 1
+    decoder_layers: int = 8
     decoder_heads: int = 16
     decoder_posemb: Literal["learnable", "sincos2d"] = "learnable"
 
