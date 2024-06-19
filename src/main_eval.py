@@ -59,10 +59,6 @@ def main(args: argparse.Namespace):
     train_dataloader, valid_dataloader = create_dataloaders(args)
     train_dataloader_iter = iter(train_dataloader)
 
-
-
-
-
     metrics = evaluate(state, valid_dataloader)
     if jax.process_index() == 0:
         if metrics["val/acc1"] > max_val_acc1:
