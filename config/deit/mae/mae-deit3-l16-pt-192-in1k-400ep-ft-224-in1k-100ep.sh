@@ -1,4 +1,4 @@
-export train_batch_size=1024 warmup_epoch=5 epoch=100
+export train_batch_size=1024 warmup_epoch=5 epoch=50
 ## $GCS_MODEL_DIR/mae/mae-deit-b16-224-in1k-800ep-last.msgpack \
 python3 src/main.py \
     --output-dir $GCS_MODEL_DIR/mae \
@@ -28,13 +28,13 @@ python3 src/main.py \
     --posemb learnable \
     --pooling gap \
     --dropout 0.0 \
-    --droppath 0.1 \
+    --droppath 0.2 \
     --init-seed 0 \
     --mixup-seed 0 \
     --dropout-seed 0 \
     --shuffle-seed 0 \
     --optimizer adamw \
-    --learning-rate 2e-3 \
+    --learning-rate 4e-3 \
     --weight-decay 0.05 \
     --adam-b1 0.9 \
     --adam-b2 0.999 \
