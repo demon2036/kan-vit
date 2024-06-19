@@ -101,8 +101,13 @@ class PatchEmbed(ViTBase, nn.Module):
             #     "wpe", init.truncated_normal(0.02), (*self.num_patches, self.dim)
             # )
 
+            # self.wpe = self.param(
+            #     "wpe", init.truncated_normal(0.02), (1,self.num_patches[0]*self.num_patches[1]+1, self.dim),dtype=self.dtype
+            # )
+
             self.wpe = self.param(
-                "wpe", init.truncated_normal(0.02), (1,self.num_patches[0]*self.num_patches[1]+1, self.dim),dtype=self.dtype
+                "wpe", init.truncated_normal(0.02), (1, self.num_patches[0] * self.num_patches[1], self.dim),
+                dtype=self.dtype
             )
 
 
@@ -114,12 +119,12 @@ class PatchEmbed(ViTBase, nn.Module):
         # if self.pooling == "cls":
         #     cls_token = jnp.repeat(self.cls_token, x.shape[0], axis=0)
         #     x = jnp.concatenate((cls_token, x), axis=1)
-
+        x = x + self.wpe
         if self.use_cls_token:
             cls_token = jnp.repeat(self.cls_token, x.shape[0], axis=0)
             x = jnp.concatenate((cls_token, x), axis=1)
 
-        x = x + self.wpe
+
 
 
         return x
