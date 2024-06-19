@@ -47,6 +47,8 @@ class ViTBase:
     labels: int | None = 1000
     layerscale: bool = False
 
+    use_cls_token: bool = True
+
     patch_size: int = 16
     image_size: int = 224
     posemb: Literal["learnable", "sincos2d"] = "learnable"
@@ -84,7 +86,12 @@ class PatchEmbed(ViTBase, nn.Module):
             strides=(self.patch_size, self.patch_size),
             padding="VALID",
         )
-        if self.pooling == "cls":
+        # if self.pooling == "cls":
+        #     self.cls_token = self.param(
+        #         "cls_token", init.truncated_normal(0.02), (1, 1, self.dim)
+        #     )
+
+        if self.use_cls_token:
             self.cls_token = self.param(
                 "cls_token", init.truncated_normal(0.02), (1, 1, self.dim)
             )
@@ -97,10 +104,16 @@ class PatchEmbed(ViTBase, nn.Module):
             self.wpe = fixed_sincos2d_embeddings(*self.num_patches, self.dim)
 
     def __call__(self, x: Array) -> Array:
-        x = (self.wte(x) + self.wpe).reshape(x.shape[0], -1, self.dim)
-        if self.pooling == "cls":
+        x = (self.wte(x)).reshape(x.shape[0], -1, self.dim)
+        # if self.pooling == "cls":
+        #     cls_token = jnp.repeat(self.cls_token, x.shape[0], axis=0)
+        #     x = jnp.concatenate((cls_token, x), axis=1)
+
+        if self.use_cls_token:
             cls_token = jnp.repeat(self.cls_token, x.shape[0], axis=0)
             x = jnp.concatenate((cls_token, x), axis=1)
+        x = x + self.wpe
+
         return x
 
 
@@ -167,7 +180,7 @@ class ViT(ViTBase, nn.Module):
         x = self.drop(self.embed(x), det)
         for layer in self.layer:
             x = layer(x, det)
-        x = self.norm(x)
+        # x = self.norm(x)
 
         # If the classification head is not defined, then return the output of all
         # tokens instead of pooling to a single vector and then calculate class logits.
@@ -177,7 +190,9 @@ class ViT(ViTBase, nn.Module):
         if self.pooling == "cls":
             x = x[:, 0, :]
         elif self.pooling == "gap":
-            x = x.mean(1)
+            # x = x.mean(1)
+            x = x[:, 1:, :].mean(1)
+            x = self.norm(x)
         return self.head(x)
 
 
@@ -573,7 +588,7 @@ if __name__ == "__main__":
 
     """
     x, mask, ids_restore = loss(state.params)
-   
+
     mask_tokens = jnp.zeros((x.shape[0], ids_restore.shape[1] - x.shape[1], x.shape[2]))
 
     x = jnp.concatenate([x, mask_tokens], axis=1)
@@ -598,7 +613,7 @@ if __name__ == "__main__":
 
     x = einops.rearrange(x, 'b (h w) (c k1 k2) ->b (h k1) (w k2) c', k1=2, k2=2, h=16)
 
-    
+
     import matplotlib.pyplot as plt
 
     print(x.shape, mask_tokens.shape)
