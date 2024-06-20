@@ -82,46 +82,44 @@ class ViTBase:
     def num_patches(self) -> tuple[int, int]:
         return (self.image_size // self.patch_size,) * 2
 
-
-# class PatchEmbed(ViTBase, nn.Module):
-#     def setup(self):
-#         self.wte = nn.Conv(
-#             self.dim,
-#             kernel_size=(self.patch_size, self.patch_size),
-#             strides=(self.patch_size, self.patch_size),
-#             padding="VALID", dtype=self.dtype, kernel_init=nn.initializers.xavier_uniform()
-#         )
-#         # if self.pooling == "cls":
-#         #     self.cls_token = self.param(
-#         #         "cls_token", init.truncated_normal(0.02), (1, 1, self.dim)
-#         #     )
-#
-#         if self.use_cls_token:
-#             self.cls_token = self.param(
-#                 "cls_token", init.truncated_normal(0.02), (1, 1, self.dim), dtype=self.dtype
-#             )
-#
-#         if self.posemb == "learnable":
-#             # self.wpe = self.param(
-#             #     "wpe", init.truncated_normal(0.02), (*self.num_patches, self.dim)
-#             # )
-#
-#             # self.wpe = self.param(
-#             #     "wpe", init.truncated_normal(0.02), (1,self.num_patches[0]*self.num_patches[1]+1, self.dim),dtype=self.dtype
-#             # )
-#
-#             self.wpe = self.param(
-#                 "wpe", init.truncated_normal(0.02), (1, self.num_patches[0] * self.num_patches[1] + 1, self.dim),
-#                 dtype=self.dtype
-#             )
-#
-#
-#         elif self.posemb == "sincos2d":
-#             self.wpe = fixed_sincos2d_embeddings(*self.num_patches, self.dim)
-#             # self.wpe = get_2d_sincos_pos_embed(self.dim, self.num_patches[0], cls_token=True)
+    # class PatchEmbed(ViTBase, nn.Module):
+    #     def setup(self):
+    #         self.wte = nn.Conv(
+    #             self.dim,
+    #             kernel_size=(self.patch_size, self.patch_size),
+    #             strides=(self.patch_size, self.patch_size),
+    #             padding="VALID", dtype=self.dtype, kernel_init=nn.initializers.xavier_uniform()
+    #         )
+    #         # if self.pooling == "cls":
+    #         #     self.cls_token = self.param(
+    #         #         "cls_token", init.truncated_normal(0.02), (1, 1, self.dim)
+    #         #     )
+    #
+    #         if self.use_cls_token:
+    #             self.cls_token = self.param(
+    #                 "cls_token", init.truncated_normal(0.02), (1, 1, self.dim), dtype=self.dtype
+    #             )
+    #
+    #         if self.posemb == "learnable":
+    #             # self.wpe = self.param(
+    #             #     "wpe", init.truncated_normal(0.02), (*self.num_patches, self.dim)
+    #             # )
+    #
+    #             # self.wpe = self.param(
+    #             #     "wpe", init.truncated_normal(0.02), (1,self.num_patches[0]*self.num_patches[1]+1, self.dim),dtype=self.dtype
+    #             # )
+    #
+    #             self.wpe = self.param(
+    #                 "wpe", init.truncated_normal(0.02), (1, self.num_patches[0] * self.num_patches[1] + 1, self.dim),
+    #                 dtype=self.dtype
+    #             )
+    #
+    #
+    #         elif self.posemb == "sincos2d":
+    #             self.wpe = fixed_sincos2d_embeddings(*self.num_patches, self.dim)
+    #             # self.wpe = get_2d_sincos_pos_embed(self.dim, self.num_patches[0], cls_token=True)
 
     def __call__(self, x: Array) -> Array:
-
         print(self.wte(x).shape, self.wpe.shape, self.posemb)
 
         x = (self.wte(x) + self.wpe).reshape(x.shape[0], -1, self.dim)
@@ -256,18 +254,22 @@ class MAEBase:
     decoder_heads: int = 16
     decoder_posemb: Literal["learnable", "sincos2d"] = "learnable"
 
+
 def _ntuple(n):
     def parse(x):
         if isinstance(x, collections.abc.Iterable):
             return x
         return tuple(repeat(x, n))
+
     return parse
+
 
 to_2tuple = _ntuple(2)
 
 
 def constant_init(key, shape, dtype=jnp.float_, constant=0.04):
     return jnp.ones(shape, jax.dtypes.canonicalize_dtype(dtype)) * constant
+
 
 class PatchEmbed(nn.Module):
     img_size: Optional[Union[tuple, int]] = 224
@@ -291,10 +293,11 @@ class PatchEmbed(nn.Module):
         B, H, W, C = inputs.shape
         outputs = self.proj(inputs)
         if self.flatten:
-            outputs = outputs.reshape(B, -1, self.embed_dim) # B,N,C shape
+            outputs = outputs.reshape(B, -1, self.embed_dim)  # B,N,C shape
         if self.norm_layer is not None:
             outputs = self.norm_layer(outputs)
         return outputs
+
 
 class MAE(ViTBase, MAEBase, nn.Module):
     # img_size: int = 224
@@ -481,10 +484,11 @@ class MAE(ViTBase, MAEBase, nn.Module):
         if rng is None:
             rng = self.make_rng("random_masking")
         latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio, det=det, rng=rng)
+
         pred = self.forward_decoder(latent, ids_restore, det=det)
         target = self.patchify(imgs)
 
-        loss = self.forward_loss(imgs, target, mask)
+        loss = self.forward_loss(imgs, pred, mask)
         return loss, pred, mask
 
         # return pred, target, mask
@@ -726,18 +730,18 @@ if __name__ == "__main__":
         grad = jax.grad(loss)(state.params)
         state = state.apply_gradients(grads=grad)
 
-        return state
+        return state, grad
 
 
     # print(state.opt_state)
 
-    state = test(state)
+    state, grad = test(state)
     # grad = jax.grad(loss)(state.params)
     # state = state.apply_gradients(grads=grad)
 
     # state.replace(opt_state=old_opt_state)
 
-    print(state.opt_state.hyperparams)
+    print(grad)
 
     # state=state.replace(step=100)
     # print(state.opt_state)

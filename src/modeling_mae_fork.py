@@ -603,18 +603,18 @@ if __name__ == "__main__":
         grad = jax.grad(loss)(state.params)
         state = state.apply_gradients(grads=grad)
 
-        return state
+        return state, grad
 
 
     # print(state.opt_state)
 
-    state = test(state)
+    state, grad = test(state)
     # grad = jax.grad(loss)(state.params)
     # state = state.apply_gradients(grads=grad)
 
     # state.replace(opt_state=old_opt_state)
 
-    print(state.opt_state.hyperparams)
+    print(grad)
 
     # state=state.replace(step=100)
     # print(state.opt_state)
