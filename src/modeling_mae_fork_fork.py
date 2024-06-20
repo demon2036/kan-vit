@@ -348,10 +348,11 @@ class ViT(ViTBase, nn.Module):
 
         if self.pooling == "cls":
             x = x[:, 0, :]
+            x = self.encoder_norm(x)
         elif self.pooling == "gap":
             # x = x.mean(1)
             x = x[:, 1:, :].mean(1)
-            x = self.norm(x)
+            x = self.encoder_norm(x)
         x = self.head(x)
         print(x.dtype)
         return x
