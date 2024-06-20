@@ -116,8 +116,8 @@ class PatchEmbed(ViTBase, nn.Module):
             # self.wpe = get_2d_sincos_pos_embed(self.dim, self.num_patches[0], cls_token=True)
 
     def __call__(self, x: Array) -> Array:
-        x = (self.wte(x) + self.wpe).reshape(x.shape[0], -1, self.dim)
-        # x = (self.wte(x)).reshape(x.shape[0], -1, self.dim)
+        # x = (self.wte(x) + self.wpe).reshape(x.shape[0], -1, self.dim)
+        x = (self.wte(x)).reshape(x.shape[0], -1, self.dim)
         # if self.pooling == "cls":
         #     cls_token = jnp.repeat(self.cls_token, x.shape[0], axis=0)
         #     x = jnp.concatenate((cls_token, x), axis=1)
@@ -126,7 +126,7 @@ class PatchEmbed(ViTBase, nn.Module):
             cls_token = jnp.repeat(self.cls_token, x.shape[0], axis=0)
             x = jnp.concatenate((cls_token, x), axis=1)
 
-        # x = x + self.wpe
+        x = x + self.wpe
 
         return x
 
