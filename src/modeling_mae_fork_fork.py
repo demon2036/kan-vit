@@ -203,6 +203,7 @@ class ViTLayer(ViTBase, nn.Module):
 
         self.scale1 = self.scale2 = 1.0
         if self.layerscale:
+            print(self.layerscale)
             self.scale1 = self.param("scale1", init.constant(1e-4), (self.dim,))
             self.scale2 = self.param("scale2", init.constant(1e-4), (self.dim,))
 
@@ -292,7 +293,8 @@ class PatchEmbed(nn.Module):
         self.grid_size = grid_size
         self.num_patches = grid_size[0] * grid_size[1]
         self.proj = nn.Conv(self.embed_dim, kernel_size=patch_size, strides=patch_size, padding='VALID',
-                            kernel_init=nn.initializers.xavier_uniform())
+                            kernel_init=nn.initializers.xavier_uniform(in_axis=(0,1,2))
+                            )
 
     def __call__(self, inputs, train: bool = True):
         B, H, W, C = inputs.shape
@@ -418,7 +420,7 @@ class MAE(ViTBase, MAEBase, nn.Module):
 
         self.encoder_norm = self.norm_layer(name="encoder_norm")
 
-        self.decoder_embed = nn.Dense(self.decoder_dim, use_bias=True)
+        self.decoder_embed = nn.Dense(self.decoder_dim, use_bias=True,kernel_init=dense_kernel_init)
         self.mask_token = self.param("mask_token", nn.initializers.normal(0.02),
                                      [1, 1, self.decoder_dim])
 
@@ -434,7 +436,7 @@ class MAE(ViTBase, MAEBase, nn.Module):
 
         self.decoder_blocks = [layer_fn(**kwargs) for _ in range(self.decoder_layers)]
 
-        self.decoder_pred = nn.Dense(self.patch_size ** 2 * 3, use_bias=True)
+        self.decoder_pred = nn.Dense(self.patch_size ** 2 * 3, use_bias=True,kernel_init=dense_kernel_init)
         self.decoder_norm = self.norm_layer(name="decoder_norm")
 
         rng = self.make_rng("random_masking")
@@ -491,7 +493,7 @@ class MAE(ViTBase, MAEBase, nn.Module):
         x = self.embed(x)
         # x = x + self.pos_embed[:, 1:, :]
         # print(self.pos_embed.value.shape)
-        pos_embed = self.pos_embed.value
+        pos_embed = jax.lax.stop_gradient(self.pos_embed.value)
         x = x + pos_embed[:, 1:, :]
 
         # masking: length -> length * mask_ratio
@@ -516,7 +518,7 @@ class MAE(ViTBase, MAEBase, nn.Module):
         x_ = jnp.concatenate([x[:, 1:, :], mask_tokens], axis=1)
         x_ = batched_gather(x_, ids_restore)
         x = jnp.concatenate([x[:, :1, :], x_], axis=1)
-        decoder_pos_embed = self.decoder_pos_embed.value
+        decoder_pos_embed = jax.lax.stop_gradient(self.decoder_pos_embed.value)
         x = x + decoder_pos_embed
 
         for blk in self.decoder_blocks:
@@ -707,7 +709,7 @@ def create_train_state(rng,
 if __name__ == "__main__":
     rng = jax.random.PRNGKey(1)
     state = create_train_state(rng, layers=1, warmup_steps=1000, training_steps=10000000, weight_decay=0.05,
-                               pooling='cls', posemb="sincos2d",
+                               pooling='cls', posemb="sincos2d",layerscale=False,
                                learning_rate=1e-3).replicate()
     batch = 1
     image_shape = [batch, 32, 32, 3]
@@ -760,7 +762,12 @@ if __name__ == "__main__":
     # print(state.opt_state)
 
     state, grad = test(state)
-    print(grad)
+    # print(grad)
+
+    def temp(path,x):
+        print(path,x.mean(),x.std(),x.max(),x.min())
+
+    jax.tree_util.tree_map_with_path(temp,grad)
 
     # state, grad2 = test(state)
     # print(grad2)
