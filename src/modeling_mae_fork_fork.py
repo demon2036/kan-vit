@@ -212,38 +212,43 @@ class ViTLayer(ViTBase, nn.Module):
         return x
 
 
-class ViT(ViTBase, nn.Module):
-    def setup(self):
-        self.embed = PatchEmbed(**self.kwargs)
-        self.drop = nn.Dropout(self.dropout)
+# class ViT(ViTBase, nn.Module):
+#     def setup(self):
+#         self.embed = PatchEmbed(**self.kwargs)
+#         self.drop = nn.Dropout(self.dropout)
+#
+#         # The layer class should be wrapped with `nn.remat` if `grad_ckpt` is enabled.
+#         layer_fn = nn.remat(ViTLayer) if self.grad_ckpt else ViTLayer
+#         self.layer = [layer_fn(**self.kwargs) for _ in range(self.layers)]
+#
+#         self.norm = nn.LayerNorm(dtype=self.dtype)
+#         self.head = nn.Dense(self.labels, dtype=self.dtype) if self.labels is not None else None
+#
+#     def __call__(self, x: Array, det: bool = True) -> Array:
+#         x = self.drop(self.embed(x), det)
+#         for layer in self.layer:
+#             x = layer(x, det)
+#         # x = self.norm(x)
+#
+#         # If the classification head is not defined, then return the output of all
+#         # tokens instead of pooling to a single vector and then calculate class logits.
+#         if self.head is None:
+#             return x
+#
+#         if self.pooling == "cls":
+#             x = x[:, 0, :]
+#         elif self.pooling == "gap":
+#             # x = x.mean(1)
+#             x = x[:, 1:, :].mean(1)
+#             x = self.norm(x)
+#         x = self.head(x)
+#         print(x.dtype)
+#         return x
 
-        # The layer class should be wrapped with `nn.remat` if `grad_ckpt` is enabled.
-        layer_fn = nn.remat(ViTLayer) if self.grad_ckpt else ViTLayer
-        self.layer = [layer_fn(**self.kwargs) for _ in range(self.layers)]
 
-        self.norm = nn.LayerNorm(dtype=self.dtype)
-        self.head = nn.Dense(self.labels, dtype=self.dtype) if self.labels is not None else None
 
-    def __call__(self, x: Array, det: bool = True) -> Array:
-        x = self.drop(self.embed(x), det)
-        for layer in self.layer:
-            x = layer(x, det)
-        # x = self.norm(x)
 
-        # If the classification head is not defined, then return the output of all
-        # tokens instead of pooling to a single vector and then calculate class logits.
-        if self.head is None:
-            return x
 
-        if self.pooling == "cls":
-            x = x[:, 0, :]
-        elif self.pooling == "gap":
-            # x = x.mean(1)
-            x = x[:, 1:, :].mean(1)
-            x = self.norm(x)
-        x = self.head(x)
-        print(x.dtype)
-        return x
 
 
 @dataclass
@@ -297,6 +302,58 @@ class PatchEmbed(nn.Module):
         if self.norm_layer is not None:
             outputs = self.norm_layer(outputs)
         return outputs
+
+
+class ViT(ViTBase, nn.Module):
+    def setup(self):
+        self.embed = PatchEmbed(self.image_size, self.patch_size, self.dim)
+        self.drop = nn.Dropout(self.dropout)
+
+        self.cls_token = self.param("cls_token", nn.initializers.normal(0.02),
+                                    [1, 1, self.dim])
+
+        self.pos_embed = self.variable("params", "pos_embed",
+                                       init_fn=partial(get_2d_sincos_pos_embed,
+                                                       embed_dim=self.dim,
+                                                       grid_size=int(self.embed.num_patches ** .5),
+                                                       cls_token=True, expand_first_dim=True),
+                                       )
+
+        # The layer class should be wrapped with `nn.remat` if `grad_ckpt` is enabled.
+        layer_fn = nn.remat(ViTLayer) if self.grad_ckpt else ViTLayer
+        self.layer = [layer_fn(**self.kwargs) for _ in range(self.layers)]
+
+        # self.norm = nn.LayerNorm(dtype=self.dtype)
+        self.encoder_norm = self.norm_layer(name="encoder_norm")
+        self.head = nn.Dense(self.labels, dtype=self.dtype) if self.labels is not None else None
+
+    def __call__(self, x: Array, det: bool = True) -> Array:
+        x = self.drop(self.embed(x), det)
+
+        pos_embed = self.pos_embed.value
+        x = x + pos_embed[:, 1:, :]
+
+        cls_token = self.cls_token + pos_embed[:, :1, :]
+        cls_tokens = jnp.broadcast_to(cls_token, (x.shape[:1] + cls_token.shape[1:]))
+        x = jnp.concatenate([cls_tokens, x], axis=1)
+        for layer in self.layer:
+            x = layer(x, det)
+        # x = self.norm(x)
+
+        # If the classification head is not defined, then return the output of all
+        # tokens instead of pooling to a single vector and then calculate class logits.
+        if self.head is None:
+            return x
+
+        if self.pooling == "cls":
+            x = x[:, 0, :]
+        elif self.pooling == "gap":
+            # x = x.mean(1)
+            x = x[:, 1:, :].mean(1)
+            x = self.norm(x)
+        x = self.head(x)
+        print(x.dtype)
+        return x
 
 
 class MAE(ViTBase, MAEBase, nn.Module):
