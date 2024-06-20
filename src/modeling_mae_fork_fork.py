@@ -37,7 +37,7 @@ import jax
 import flax
 
 
-jax.config.update('jax_default_matmul_precision', 'float32')
+
 
 dense_kernel_init = nn.initializers.xavier_uniform()
 

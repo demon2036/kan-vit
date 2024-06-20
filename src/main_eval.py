@@ -34,6 +34,7 @@ from torch.utils.data import DataLoader
 from dataset import create_dataloaders
 from training import TrainState, create_train_state, training_step, validation_step
 from utils import AverageMeter, save_checkpoint_in_background
+jax.config.update('jax_default_matmul_precision', 'float32')
 
 warnings.filterwarnings("ignore")
 
