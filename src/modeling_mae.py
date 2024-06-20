@@ -59,7 +59,8 @@ class ViTBase:
     grad_ckpt: bool = False
     use_kan: bool = False
     polynomial_degree: int = 8
-    dtype: Any = jnp.bfloat16
+    dtype: Any = jnp.float32
+    precision: Any = jax.lax.Precision.HIGHEST
 
     @property
     def kwargs(self) -> dict[str, Any]:
@@ -84,7 +85,7 @@ class PatchEmbed(ViTBase, nn.Module):
             self.dim,
             kernel_size=(self.patch_size, self.patch_size),
             strides=(self.patch_size, self.patch_size),
-            padding="VALID", dtype=self.dtype
+            padding="VALID", dtype=self.dtype,precision=self.precision
         )
         # if self.pooling == "cls":
         #     self.cls_token = self.param(
@@ -133,22 +134,22 @@ class PatchEmbed(ViTBase, nn.Module):
 
 class Attention(ViTBase, nn.Module):
     def setup(self):
-        self.wq = DenseGeneral((self.heads, self.head_dim), dtype=self.dtype)
-        self.wk = DenseGeneral((self.heads, self.head_dim), dtype=self.dtype)
-        self.wv = DenseGeneral((self.heads, self.head_dim), dtype=self.dtype)
+        self.wq = DenseGeneral((self.heads, self.head_dim), dtype=self.dtype,precision=self.precision)
+        self.wk = DenseGeneral((self.heads, self.head_dim), dtype=self.dtype,precision=self.precision)
+        self.wv = DenseGeneral((self.heads, self.head_dim), dtype=self.dtype,precision=self.precision)
         self.wo = DenseGeneral(self.dim, axis=(-2, -1))
         self.drop = nn.Dropout(self.dropout)
 
     def __call__(self, x: Array, det: bool = True) -> Array:
-        z = jnp.einsum("bqhd,bkhd->bhqk", self.wq(x) / self.head_dim ** 0.5, self.wk(x))
-        z = jnp.einsum("bhqk,bkhd->bqhd", self.drop(nn.softmax(z), det), self.wv(x))
+        z = jnp.einsum("bqhd,bkhd->bhqk", self.wq(x) / self.head_dim ** 0.5, self.wk(x),precision=self.precision)
+        z = jnp.einsum("bhqk,bkhd->bqhd", self.drop(nn.softmax(z), det), self.wv(x),precision=self.precision)
         return self.drop(self.wo(z), det)
 
 
 class FeedForward(ViTBase, nn.Module):
     def setup(self):
-        self.w1 = Dense(self.hidden_dim, dtype=self.dtype)
-        self.w2 = Dense(self.dim, dtype=self.dtype)
+        self.w1 = Dense(self.hidden_dim, dtype=self.dtype,precision=self.precision)
+        self.w2 = Dense(self.dim, dtype=self.dtype,precision=self.precision)
         self.drop = nn.Dropout(self.dropout)
 
     def __call__(self, x: Array, det: bool = True) -> Array:
@@ -188,7 +189,7 @@ class ViT(ViTBase, nn.Module):
         self.layer = [layer_fn(**self.kwargs) for _ in range(self.layers)]
 
         self.norm = nn.LayerNorm(dtype=self.dtype)
-        self.head = Dense(self.labels, dtype=self.dtype) if self.labels is not None else None
+        self.head = Dense(self.labels, dtype=self.dtype,precision=self.precision) if self.labels is not None else None
 
     def __call__(self, x: Array, det: bool = True) -> Array:
         x = self.drop(self.embed(x), det)
