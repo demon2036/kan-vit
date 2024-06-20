@@ -164,8 +164,8 @@ class ViTLayer(ViTBase, nn.Module):
         else:
             self.ff = FeedForward(**self.kwargs)
 
-        self.norm1 = nn.LayerNorm(dtype=self.dtype)
-        self.norm2 = nn.LayerNorm(dtype=self.dtype)
+        self.norm1 = nn.LayerNorm(dtype=self.dtype,use_fast_variance=False)
+        self.norm2 = nn.LayerNorm(dtype=self.dtype,use_fast_variance=False)
         self.drop = nn.Dropout(self.droppath, broadcast_dims=(1, 2))
 
         self.scale1 = self.scale2 = 1.0
@@ -188,7 +188,7 @@ class ViT(ViTBase, nn.Module):
         layer_fn = nn.remat(ViTLayer) if self.grad_ckpt else ViTLayer
         self.layer = [layer_fn(**self.kwargs) for _ in range(self.layers)]
 
-        self.norm = nn.LayerNorm(dtype=self.dtype)
+        self.norm = nn.LayerNorm(dtype=self.dtype,use_fast_variance=False)
         self.head = Dense(self.labels, dtype=self.dtype,precision=self.precision) if self.labels is not None else None
 
     def __call__(self, x: Array, det: bool = True) -> Array:
