@@ -59,7 +59,7 @@ class ViTBase:
     grad_ckpt: bool = False
     use_kan: bool = False
     polynomial_degree: int = 8
-    dtype: Any = jnp.float32
+    dtype: Any = jnp.bfloat16
 
     @property
     def kwargs(self) -> dict[str, Any]:
