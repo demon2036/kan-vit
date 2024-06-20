@@ -85,7 +85,7 @@ class PatchEmbed(ViTBase, nn.Module):
             self.dim,
             kernel_size=(self.patch_size, self.patch_size),
             strides=(self.patch_size, self.patch_size),
-            padding="VALID", dtype=self.dtype,precision=self.precision
+            padding="VALID", dtype=self.dtype, precision=self.precision
         )
         # if self.pooling == "cls":
         #     self.cls_token = self.param(
@@ -134,22 +134,25 @@ class PatchEmbed(ViTBase, nn.Module):
 
 class Attention(ViTBase, nn.Module):
     def setup(self):
-        self.wq = DenseGeneral((self.heads, self.head_dim), dtype=self.dtype,precision=self.precision)
-        self.wk = DenseGeneral((self.heads, self.head_dim), dtype=self.dtype,precision=self.precision)
-        self.wv = DenseGeneral((self.heads, self.head_dim), dtype=self.dtype,precision=self.precision)
+        self.wq = DenseGeneral((self.heads, self.head_dim), dtype=self.dtype, precision=self.precision)
+        self.wk = DenseGeneral((self.heads, self.head_dim), dtype=self.dtype, precision=self.precision)
+        self.wv = DenseGeneral((self.heads, self.head_dim), dtype=self.dtype, precision=self.precision)
         self.wo = DenseGeneral(self.dim, axis=(-2, -1))
         self.drop = nn.Dropout(self.dropout)
 
     def __call__(self, x: Array, det: bool = True) -> Array:
-        z = jnp.einsum("bqhd,bkhd->bhqk", self.wq(x) / self.head_dim ** 0.5, self.wk(x),precision=self.precision)
-        z = jnp.einsum("bhqk,bkhd->bqhd", self.drop(nn.softmax(z), det), self.wv(x),precision=self.precision)
+        # z = jnp.einsum("bqhd,bkhd->bhqk", self.wq(x) / self.head_dim ** 0.5, self.wk(x), precision=self.precision)
+        # z = jnp.einsum("bhqk,bkhd->bqhd", self.drop(nn.softmax(z), det), self.wv(x), precision=self.precision)
+
+        z=nn.dot_product_attention(self.wq(x),self.wk(x),self.wv(x),precision=self.precision)
+
         return self.drop(self.wo(z), det)
 
 
 class FeedForward(ViTBase, nn.Module):
     def setup(self):
-        self.w1 = Dense(self.hidden_dim, dtype=self.dtype,precision=self.precision)
-        self.w2 = Dense(self.dim, dtype=self.dtype,precision=self.precision)
+        self.w1 = Dense(self.hidden_dim, dtype=self.dtype, precision=self.precision)
+        self.w2 = Dense(self.dim, dtype=self.dtype, precision=self.precision)
         self.drop = nn.Dropout(self.dropout)
 
     def __call__(self, x: Array, det: bool = True) -> Array:
@@ -164,8 +167,8 @@ class ViTLayer(ViTBase, nn.Module):
         else:
             self.ff = FeedForward(**self.kwargs)
 
-        self.norm1 = nn.LayerNorm(dtype=self.dtype,use_fast_variance=False)
-        self.norm2 = nn.LayerNorm(dtype=self.dtype,use_fast_variance=False)
+        self.norm1 = nn.LayerNorm(dtype=self.dtype, use_fast_variance=False)
+        self.norm2 = nn.LayerNorm(dtype=self.dtype, use_fast_variance=False)
         self.drop = nn.Dropout(self.droppath, broadcast_dims=(1, 2))
 
         self.scale1 = self.scale2 = 1.0
@@ -188,8 +191,8 @@ class ViT(ViTBase, nn.Module):
         layer_fn = nn.remat(ViTLayer) if self.grad_ckpt else ViTLayer
         self.layer = [layer_fn(**self.kwargs) for _ in range(self.layers)]
 
-        self.norm = nn.LayerNorm(dtype=self.dtype,use_fast_variance=False)
-        self.head = Dense(self.labels, dtype=self.dtype,precision=self.precision) if self.labels is not None else None
+        self.norm = nn.LayerNorm(dtype=self.dtype, use_fast_variance=False)
+        self.head = Dense(self.labels, dtype=self.dtype, precision=self.precision) if self.labels is not None else None
 
     def __call__(self, x: Array, det: bool = True) -> Array:
         x = self.drop(self.embed(x), det)
