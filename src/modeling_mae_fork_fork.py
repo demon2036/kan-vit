@@ -37,6 +37,7 @@ import jax
 import flax
 
 
+jax.config.update('jax_default_matmul_precision', 'float32')
 
 
 dense_kernel_init = nn.initializers.xavier_uniform()
@@ -68,6 +69,7 @@ class ViTBase:
     use_kan: bool = False
     polynomial_degree: int = 8
     dtype: Any = jnp.float32
+    precision: Any = jax.lax.Precision.HIGHEST
 
     @property
     def kwargs(self) -> dict[str, Any]:
@@ -165,8 +167,8 @@ class Attention(ViTBase, nn.Module):
     def __call__(self, x, det: bool = True):
         head_dim = self.head_dim
         scale = head_dim ** -0.5
-        qkv_layer = nn.Dense(self.dim * 3, use_bias=True, kernel_init=dense_kernel_init)
-        proj_layer = nn.Dense(self.dim, kernel_init=dense_kernel_init)
+        qkv_layer = nn.Dense(self.dim * 3, use_bias=True, kernel_init=dense_kernel_init, dtype=self.dtype, precision=self.precision)
+        proj_layer = nn.Dense(self.dim, kernel_init=dense_kernel_init, dtype=self.dtype, precision=self.precision)
 
         B, N, C = x.shape
         qkv = qkv_layer(x).reshape(B, N, 3, self.heads, C // self.heads).transpose((2, 0, 3, 1, 4))
@@ -184,8 +186,8 @@ class Attention(ViTBase, nn.Module):
 
 class FeedForward(ViTBase, nn.Module):
     def setup(self):
-        self.w1 = nn.Dense(self.hidden_dim, dtype=self.dtype, kernel_init=dense_kernel_init)
-        self.w2 = nn.Dense(self.dim, dtype=self.dtype, kernel_init=dense_kernel_init)
+        self.w1 = nn.Dense(self.hidden_dim, dtype=self.dtype, kernel_init=dense_kernel_init, precision=self.precision)
+        self.w2 = nn.Dense(self.dim, dtype=self.dtype, kernel_init=dense_kernel_init,  precision=self.precision)
         self.drop = nn.Dropout(self.dropout)
 
     def __call__(self, x: Array, det: bool = True) -> Array:
@@ -200,8 +202,8 @@ class ViTLayer(ViTBase, nn.Module):
         else:
             self.ff = FeedForward(**self.kwargs)
 
-        self.norm1 = nn.LayerNorm(dtype=self.dtype)
-        self.norm2 = nn.LayerNorm(dtype=self.dtype)
+        self.norm1 = nn.LayerNorm(dtype=self.dtype, use_fast_variance=False)
+        self.norm2 = nn.LayerNorm(dtype=self.dtype, use_fast_variance=False)
         self.drop = nn.Dropout(self.droppath, broadcast_dims=(1, 2))
 
         self.scale1 = self.scale2 = 1.0
@@ -296,7 +298,7 @@ class PatchEmbed(nn.Module):
         self.grid_size = grid_size
         self.num_patches = grid_size[0] * grid_size[1]
         self.proj = nn.Conv(self.embed_dim, kernel_size=patch_size, strides=patch_size, padding='VALID',
-                            kernel_init=nn.initializers.xavier_uniform(in_axis=(0,1,2))
+                            kernel_init=nn.initializers.xavier_uniform(in_axis=(0,1,2)), dtype=self.dtype, precision=self.precision
                             )
 
     def __call__(self, inputs, train: bool = True):
@@ -310,7 +312,7 @@ class PatchEmbed(nn.Module):
 
 
 class ViT(ViTBase, nn.Module):
-    norm_layer: Optional[Callable] = nn.LayerNorm
+    norm_layer: Optional[Callable] = partial(nn.LayerNorm, use_fast_variance=False)
     def setup(self):
         self.embed = PatchEmbed(self.image_size, self.patch_size, self.dim)
         self.drop = nn.Dropout(self.dropout)
@@ -330,8 +332,8 @@ class ViT(ViTBase, nn.Module):
         self.layer = [layer_fn(**self.kwargs) for _ in range(self.layers)]
 
         # self.norm = nn.LayerNorm(dtype=self.dtype)
-        self.encoder_norm = self.norm_layer(name="encoder_norm")
-        self.head = nn.Dense(self.labels, dtype=self.dtype,kernel_init=nn.initializers.truncated_normal(2e-5)) if self.labels is not None else None
+        self.encoder_norm = self.norm_layer(name="encoder_norm", use_fast_variance=False)
+        self.head = nn.Dense(self.labels, dtype=self.dtype, precision=self.precision,kernel_init=nn.initializers.truncated_normal(2e-5)) if self.labels is not None else None
 
     def __call__(self, x: Array, det: bool = True) -> Array:
         x = self.drop(self.embed(x), det)
@@ -374,7 +376,7 @@ class MAE(ViTBase, MAEBase, nn.Module):
     # decoder_depth: int = 8
     # decoder_num_heads: int = 16
     # mlp_ratio: float = 4.
-    norm_layer: Optional[Callable] = nn.LayerNorm
+    norm_layer: Optional[Callable] = partial(nn.LayerNorm, use_fast_variance=False)
     dtype: Any = jnp.float32
 
     """
@@ -423,7 +425,7 @@ class MAE(ViTBase, MAEBase, nn.Module):
 
         self.encoder_norm = self.norm_layer(name="encoder_norm")
 
-        self.decoder_embed = nn.Dense(self.decoder_dim, use_bias=True,kernel_init=dense_kernel_init)
+        self.decoder_embed = nn.Dense(self.decoder_dim, use_bias=True,kernel_init=dense_kernel_init, dtype=self.dtype, precision=self.precision)
         self.mask_token = self.param("mask_token", nn.initializers.normal(0.02),
                                      [1, 1, self.decoder_dim])
 
@@ -439,7 +441,7 @@ class MAE(ViTBase, MAEBase, nn.Module):
 
         self.decoder_blocks = [layer_fn(**kwargs) for _ in range(self.decoder_layers)]
 
-        self.decoder_pred = nn.Dense(self.patch_size ** 2 * 3, use_bias=True,kernel_init=dense_kernel_init)
+        self.decoder_pred = nn.Dense(self.patch_size ** 2 * 3, use_bias=True,kernel_init=dense_kernel_init, dtype=self.dtype, precision=self.precision)
         self.decoder_norm = self.norm_layer(name="decoder_norm")
 
         rng = self.make_rng("random_masking")
