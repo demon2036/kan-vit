@@ -469,8 +469,8 @@ class MAE(ViTBase, MAEBase, nn.Module):
         x = x[:, 1:, :]
         return x
 
-    def forward_loss(self, x, pred, mask):
-        target = einops.rearrange(x, 'b (h k1) (w k2) c->b (h w) (c k1 k2)', k1=self.patch_size, k2=self.patch_size)
+    def forward_loss(self, target, pred, mask):
+        # target = einops.rearrange(x, 'b (h k1) (w k2) c->b (h w) (c k1 k2)', k1=self.patch_size, k2=self.patch_size)
         mean = target.mean(axis=-1, keepdims=True)
         var = target.var(axis=-1, keepdims=True)
         target = (target - mean) / (var + 1.e-6) ** .5
@@ -488,7 +488,7 @@ class MAE(ViTBase, MAEBase, nn.Module):
         pred = self.forward_decoder(latent, ids_restore, det=det)
         target = self.patchify(imgs)
 
-        loss = self.forward_loss(imgs, pred, mask)
+        loss = self.forward_loss(target, pred, mask)
         return loss, pred, mask
 
         # return pred, target, mask
@@ -531,44 +531,7 @@ class TrainState(train_state.TrainState):
         return flax.jax_utils.unreplicate(self).replace(tx=tx)
 
 
-def create_optimizer(learning_rate, weight_decay, warmup_steps, training_steps, decay=True):
-    @partial(optax.inject_hyperparams, hyperparam_dtype=jnp.float32)
-    def create_optimizer_fn(
-            learning_rate: optax.Schedule,
-    ) -> optax.GradientTransformation:
-        tx = optax.lion(
-            learning_rate=learning_rate,
-            # b1=0.95,b2=0.98,
-            # eps=args.adam_eps,
-            weight_decay=weight_decay,
-            mask=partial(jax.tree_util.tree_map_with_path, lambda kp, *_: kp[-1].key == "kernel"),
-        )
-        from jax.tree_util import tree_map_with_path
-        if decay:
-            lr_decay = 1.0
-            layers = 12
-            # if args.lr_decay < 1.0:
-            layerwise_scales = {
-                i: optax.scale(lr_decay ** (layers - i))
-                for i in range(layers + 1)
-            }
-            label_fn = partial(get_layer_index_fn, num_layers=layers)
-            label_fn = partial(tree_map_with_path, label_fn)
-            tx = optax.chain(tx, optax.multi_transform(layerwise_scales, label_fn))
-            tx = optax.chain(optax.clip_by_global_norm(1), tx)
-        return tx
 
-    print(learning_rate, weight_decay, warmup_steps, training_steps)
-    learning_rate = optax.warmup_cosine_decay_schedule(
-        init_value=1e-6,
-        peak_value=learning_rate,
-        warmup_steps=warmup_steps,
-        decay_steps=training_steps,
-        end_value=1e-5,
-    )
-
-    tx = create_optimizer_fn(learning_rate)
-    return tx
 
 
 def create_train_state(rng,
@@ -624,7 +587,7 @@ def create_train_state(rng,
     # cnn.init({'params': rng, **rng_keys}, jnp.ones(image_shape))
 
     params = cnn.init({'params': rng, }, jnp.ones(image_shape))['params']
-    """
+    """ """
     @partial(optax.inject_hyperparams, hyperparam_dtype=jnp.float32)
     def create_optimizer_fn(
             learning_rate: optax.Schedule,
@@ -655,7 +618,7 @@ def create_train_state(rng,
         decay_steps=training_steps,
         end_value=1e-5,
     )
-    """
+
 
     # learning_rate = optax.warmup_cosine_decay_schedule(
     #     init_value=1e-7,
@@ -665,9 +628,9 @@ def create_train_state(rng,
     #     end_value=1e-6,
     # )
 
-    # tx = create_optimizer_fn(learning_rate)
+    tx = create_optimizer_fn(learning_rate)
 
-    tx = create_optimizer(learning_rate, weight_decay, warmup_steps, training_steps, decay=decay)
+    # tx = create_optimizer(learning_rate, weight_decay, warmup_steps, training_steps, decay=decay)
 
     return TrainState.create(
         apply_fn=cnn.apply,
@@ -687,13 +650,13 @@ if __name__ == "__main__":
     state = create_train_state(rng, layers=1, warmup_steps=1000, training_steps=10000000, weight_decay=0.05,
                                pooling='cls', posemb="sincos2d",
                                learning_rate=1e-3).replicate()
-    batch = 2
+    batch = 1
     image_shape = [batch, 32, 32, 3]
 
     k1 = 1
     k2 = 1
-    x = jnp.ones(image_shape)
-    # x = jax.random.normal(rng, image_shape)
+    # x = jnp.ones(image_shape)
+    x = jax.random.normal(rng, image_shape)
     """
     x = einops.rearrange(x, 'b (h k1) (w k2) c ->b (h w) (c k1 k2) ', k1=k1, k2=k2, )
 
@@ -724,24 +687,31 @@ if __name__ == "__main__":
             # y = state.apply_fn({'params': params, }, x, rngs={'random_masking': rng})
             # return optax.losses.l2_loss(y, jnp.zeros_like(y)).mean()
 
-            loss, pred, mask = state.apply_fn({'params': params, }, x, rngs={'random_masking': rng})
-            return loss
+            loss, pred, mask = state.apply_fn({'params': params, }, x, rngs=rngs)
+            return loss, mask
 
-        grad = jax.grad(loss)(state.params)
+        rngs, updates = state.split_rngs()
+        grad, mask = jax.grad(loss, has_aux=True)(state.params)
+        # grad, mask = jax.grad(loss, has_aux=True)(state.params)
         state = state.apply_gradients(grads=grad)
-
+        state = state.replace(**updates)
         return state, grad
 
 
     # print(state.opt_state)
 
     state, grad = test(state)
+    print(grad)
+
+    # state, grad2 = test(state)
+    # print(grad2)
+    #
+    # print(grad - grad2)
+
     # grad = jax.grad(loss)(state.params)
     # state = state.apply_gradients(grads=grad)
 
     # state.replace(opt_state=old_opt_state)
-
-    print(grad)
 
     # state=state.replace(step=100)
     # print(state.opt_state)
