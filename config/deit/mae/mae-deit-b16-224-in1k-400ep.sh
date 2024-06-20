@@ -35,7 +35,7 @@ python3 src/main_pretrain_mae.py \
     --adam-b2 0.95 \
     --adam-eps 1e-8 \
     --lr-decay 1.0 \
-    --clip-grad 1.0 \
+    --clip-grad 0.0 \
     --grad-accum 1 \
     --warmup-steps $((1281167 * $warmup_epoch / $train_batch_size)) \
     --training-steps $((1281167 * $epoch / $train_batch_size)) \
