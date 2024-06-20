@@ -326,7 +326,7 @@ class ViT(ViTBase, nn.Module):
 
         # self.norm = nn.LayerNorm(dtype=self.dtype)
         self.encoder_norm = self.norm_layer(name="encoder_norm")
-        self.head = nn.Dense(self.labels, dtype=self.dtype) if self.labels is not None else None
+        self.head = nn.Dense(self.labels, dtype=self.dtype,kernel_init=nn.initializers.truncated_normal(2e-5)) if self.labels is not None else None
 
     def __call__(self, x: Array, det: bool = True) -> Array:
         x = self.drop(self.embed(x), det)
