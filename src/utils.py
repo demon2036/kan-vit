@@ -156,7 +156,7 @@ def load_pretrained_params(args: argparse.Namespace, params: ArrayTree) -> Array
     with wds.gopen(args.pretrained_ckpt) as fp:
         new_params = flax.serialization.msgpack_restore(fp.read())
 
-    print(new_params["model"]["embed"]["wpe"].shape, params["model"]["embed"]["wpe"].shape)
+    # print(new_params["model"]["embed"]["wpe"].shape, params["model"]["embed"]["wpe"].shape)
     # The positional embeddings will be resized when there is a difference in image
     # resolutions between pretraining and finetuning stage.
     if (
