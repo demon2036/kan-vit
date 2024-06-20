@@ -2,7 +2,7 @@ export train_batch_size=1024 warmup_epoch=5 epoch=100
 ## $GCS_MODEL_DIR/mae/mae-deit-b16-224-in1k-800ep-last.msgpack \
 python3 src/main.py \
     --output-dir $GCS_MODEL_DIR/mae \
-    --pretrained-ckpt $GCS_MODEL_DIR/mae/mae-deit-b16-224-in1k-1600ep-last.msgpack \
+    --pretrained-ckpt $GCS_MODEL_DIR/mae/mae-deit-b16-224-in1k-400ep-last.msgpack \
     --train-dataset-shards "$GCS_DATASET_DIR/imagenet-1k-wds/imagenet1k-train-{0000..1023}.tar" \
     --valid-dataset-shards "$GCS_DATASET_DIR/imagenet-1k-wds/imagenet1k-validation-{00..63}.tar" \
     --train-batch-size $train_batch_size \
@@ -25,7 +25,7 @@ python3 src/main.py \
     --labels 1000 \
     --patch-size 16 \
     --image-size 224 \
-    --posemb learnable \
+    --posemb sincos2d \
     --pooling gap \
     --dropout 0.0 \
     --droppath 0.1 \
