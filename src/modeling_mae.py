@@ -27,7 +27,7 @@ from flax.training import train_state
 from flax.training.common_utils import shard_prng_key
 from flax.training.train_state import TrainState
 
-from utils import fixed_sincos2d_embeddings, get_layer_index_fn
+from utils import fixed_sincos2d_embeddings, get_layer_index_fn, get_2d_sincos_pos_embed
 from kan import KANLayer
 
 import optax
@@ -84,7 +84,7 @@ class PatchEmbed(ViTBase, nn.Module):
             self.dim,
             kernel_size=(self.patch_size, self.patch_size),
             strides=(self.patch_size, self.patch_size),
-            padding="VALID",dtype=self.dtype
+            padding="VALID", dtype=self.dtype
         )
         # if self.pooling == "cls":
         #     self.cls_token = self.param(
@@ -93,7 +93,7 @@ class PatchEmbed(ViTBase, nn.Module):
 
         if self.use_cls_token:
             self.cls_token = self.param(
-                "cls_token", init.truncated_normal(0.02), (1, 1, self.dim),dtype=self.dtype
+                "cls_token", init.truncated_normal(0.02), (1, 1, self.dim), dtype=self.dtype
             )
 
         if self.posemb == "learnable":
@@ -113,9 +113,10 @@ class PatchEmbed(ViTBase, nn.Module):
 
         elif self.posemb == "sincos2d":
             self.wpe = fixed_sincos2d_embeddings(*self.num_patches, self.dim)
+            # self.wpe = get_2d_sincos_pos_embed(self.dim, self.num_patches[0], cls_token=True)
 
     def __call__(self, x: Array) -> Array:
-        x = (self.wte(x)).reshape(x.shape[0], -1, self.dim)
+        x = (self.wte(x) + self.wpe).reshape(x.shape[0], -1, self.dim)
         # if self.pooling == "cls":
         #     cls_token = jnp.repeat(self.cls_token, x.shape[0], axis=0)
         #     x = jnp.concatenate((cls_token, x), axis=1)
@@ -123,9 +124,6 @@ class PatchEmbed(ViTBase, nn.Module):
         if self.use_cls_token:
             cls_token = jnp.repeat(self.cls_token, x.shape[0], axis=0)
             x = jnp.concatenate((cls_token, x), axis=1)
-
-        x = x + self.wpe
-
 
         return x
 
@@ -187,7 +185,7 @@ class ViT(ViTBase, nn.Module):
         self.layer = [layer_fn(**self.kwargs) for _ in range(self.layers)]
 
         self.norm = nn.LayerNorm(dtype=self.dtype)
-        self.head = Dense(self.labels,dtype=self.dtype) if self.labels is not None else None
+        self.head = Dense(self.labels, dtype=self.dtype) if self.labels is not None else None
 
     def __call__(self, x: Array, det: bool = True) -> Array:
         x = self.drop(self.embed(x), det)
@@ -206,7 +204,7 @@ class ViT(ViTBase, nn.Module):
             # x = x.mean(1)
             x = x[:, 1:, :].mean(1)
             x = self.norm(x)
-        x=self.head(x)
+        x = self.head(x)
         print(x.dtype)
         return x
 
@@ -237,9 +235,12 @@ class MAE(ViTBase, MAEBase, nn.Module):
             "mask_token", init.truncated_normal(0.02), (1, 1, self.decoder_dim)
         )
 
-        self.decoder_pos_embed = self.param(
-            "decoder_pos_embed", init.truncated_normal(0.02), (1, self.num_patches[0] ** 2, self.decoder_dim)
-        )
+        # self.decoder_pos_embed = self.param(
+        #     "decoder_pos_embed", init.truncated_normal(0.02), (1, self.num_patches[0] ** 2, self.decoder_dim)
+        # )
+
+        self.decoder_pos_embed = fixed_sincos2d_embeddings(*self.num_patches, self.decoder_dim).reshape(1, -1,
+                                                                                                        self.decoder_dim)
 
         kwargs = self.kwargs
         kwargs.update({'dim': self.decoder_dim, 'heads': self.decoder_heads, 'layers': self.decoder_layers})
@@ -300,6 +301,7 @@ class MAE(ViTBase, MAEBase, nn.Module):
 
         x = jnp.concatenate([x, mask_tokens], axis=1)
         x = jnp.take_along_axis(x, ids_restore[..., None], axis=1)
+
         x = x + self.decoder_pos_embed
 
         if self.pooling == "cls":
