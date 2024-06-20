@@ -305,6 +305,7 @@ class PatchEmbed(nn.Module):
 
 
 class ViT(ViTBase, nn.Module):
+    norm_layer: Optional[Callable] = nn.LayerNorm
     def setup(self):
         self.embed = PatchEmbed(self.image_size, self.patch_size, self.dim)
         self.drop = nn.Dropout(self.dropout)
