@@ -355,6 +355,7 @@ def create_mae_train_state(args: argparse.Namespace) -> TrainState:
         grad_ckpt=args.grad_ckpt,
         use_kan=args.use_kan,
         polynomial_degree=args.polynomial_degree,
+        decoder_layers=args.decoder_layers
     )
 
     module = TrainMAEModule(
