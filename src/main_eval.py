@@ -13,9 +13,6 @@
 # limitations under the License.
 
 
-import os
-
-os.environ['jax.default_matmul_precision']='float32'
 
 
 from __future__ import annotations
