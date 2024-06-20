@@ -289,6 +289,8 @@ class PatchEmbed(nn.Module):
     embed_dim: int = 768
     norm_layer: Optional[Callable] = None
     flatten: bool = True
+    dtype: Any = jnp.float32
+    precision: Any = jax.lax.Precision.HIGHEST
 
     def setup(self):
         img_size = to_2tuple(self.img_size)
