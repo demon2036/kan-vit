@@ -24,6 +24,7 @@ import einops
 import flax.linen as nn
 import flax.linen.initializers as init
 import jax.numpy as jnp
+import numpy as np
 from chex import Array, PRNGKey, ArrayTree
 from flax.training import train_state
 from flax.training.common_utils import shard_prng_key
