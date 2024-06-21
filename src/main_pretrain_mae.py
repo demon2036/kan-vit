@@ -113,7 +113,7 @@ if __name__ == "__main__":
     parser.add_argument("--label-smoothing", type=float, default=0.1)
 
     parser.add_argument("--layers", type=int, default=12)
-    parser.add_argument("--decoder_layers", type=int, default=1)
+    parser.add_argument("--decoder_layers", type=int, default=8)
     parser.add_argument("--dim", type=int, default=768)
     parser.add_argument("--heads", type=int, default=12)
     parser.add_argument("--labels", type=int, default=-1)

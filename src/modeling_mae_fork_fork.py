@@ -192,7 +192,7 @@ class FeedForward(ViTBase, nn.Module):
         self.drop = nn.Dropout(self.dropout)
 
     def __call__(self, x: Array, det: bool = True) -> Array:
-        return self.drop(self.w2(self.drop(nn.gelu(self.w1(x)), det)), det)
+        return self.drop(self.w2(self.drop(nn.gelu(self.w1(x),approximate=False), det)), det)
 
 
 class ViTLayer(ViTBase, nn.Module):
