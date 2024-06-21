@@ -37,7 +37,7 @@ import jax
 import flax
 
 
-jax.config.update('jax_default_matmul_precision', 'float32')
+# jax.config.update('jax_default_matmul_precision', 'float32')
 
 
 dense_kernel_init = nn.initializers.xavier_uniform()
@@ -69,7 +69,7 @@ class ViTBase:
     use_kan: bool = False
     polynomial_degree: int = 8
     dtype: Any = jnp.float32
-    precision: Any = jax.lax.Precision.HIGHEST
+    precision: Any = jax.lax.Precision.DEFAULT
 
     @property
     def kwargs(self) -> dict[str, Any]:
@@ -195,7 +195,9 @@ class FeedForward(ViTBase, nn.Module):
 
 
 class ViTLayer(ViTBase, nn.Module):
+    drop_path_prob:float=0.0
     def setup(self):
+        print(self.drop_path_prob)
         self.attn = Attention(**self.kwargs)
         if self.use_kan:
             self.ff = KANLayer(self.polynomial_degree)
@@ -204,7 +206,7 @@ class ViTLayer(ViTBase, nn.Module):
 
         self.norm1 = nn.LayerNorm(dtype=self.dtype, use_fast_variance=False)
         self.norm2 = nn.LayerNorm(dtype=self.dtype, use_fast_variance=False)
-        self.drop = nn.Dropout(self.droppath, broadcast_dims=(1, 2))
+        self.drop = nn.Dropout(self.drop_path_prob, broadcast_dims=(1, 2))
 
         self.scale1 = self.scale2 = 1.0
         if self.layerscale:
@@ -331,7 +333,9 @@ class ViT(ViTBase, nn.Module):
 
         # The layer class should be wrapped with `nn.remat` if `grad_ckpt` is enabled.
         layer_fn = nn.remat(ViTLayer) if self.grad_ckpt else ViTLayer
-        self.layer = [layer_fn(**self.kwargs) for _ in range(self.layers)]
+
+        dpr = [x.item() for x in jnp.linspace(0, self.droppath, self.layers)]
+        self.layer = [layer_fn(**self.kwargs,drop_path_prob=dpr[i]) for i in range(self.layers)]
 
         # self.norm = nn.LayerNorm(dtype=self.dtype)
         self.encoder_norm = self.norm_layer(name="encoder_norm", use_fast_variance=False)
