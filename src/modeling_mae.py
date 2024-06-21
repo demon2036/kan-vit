@@ -61,7 +61,7 @@ class ViTBase:
     use_kan: bool = False
     polynomial_degree: int = 8
     dtype: Any = jnp.float32
-    precision: Any = jax.lax.Precision.HIGHEST
+    precision: Any = jax.lax.Precision.DEFAULT
 
     @property
     def kwargs(self) -> dict[str, Any]:
