@@ -1,4 +1,4 @@
-export train_batch_size=4096 warmup_epoch=40 epoch=400
+export train_batch_size=4096 warmup_epoch=40 epoch=1600
 
 python3 src/main_pretrain_mae.py \
     --output-dir $GCS_MODEL_DIR/mae \
