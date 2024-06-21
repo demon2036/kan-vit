@@ -22,6 +22,7 @@ import einops
 import flax.linen as nn
 import flax.linen.initializers as init
 import jax.numpy as jnp
+import numpy as np
 from chex import Array, PRNGKey
 from flax.training import train_state
 from flax.training.common_utils import shard_prng_key
@@ -192,7 +193,8 @@ class ViT(ViTBase, nn.Module):
 
         # The layer class should be wrapped with `nn.remat` if `grad_ckpt` is enabled.
         layer_fn = nn.remat(ViTLayer) if self.grad_ckpt else ViTLayer
-        dpr = [x.item() for x in jnp.linspace(0, self.droppath, self.layers)]
+
+        dpr = [x.item() for x in np.linspace(0, self.droppath, self.layers)]
         self.layer = [layer_fn(**self.kwargs, drop_path_prob=dpr[i]) for i in range(self.layers)]
 
         self.norm = nn.LayerNorm(dtype=self.dtype, use_fast_variance=False)
@@ -444,7 +446,7 @@ def create_train_state(rng,
                        ):
     """Creates initial `TrainState`."""
 
-    cnn = MAE(
+    cnn = ViT(
         layers=layers,
         dim=dim,
         heads=heads,
