@@ -159,16 +159,16 @@ def load_pretrained_params(args: argparse.Namespace, params: ArrayTree) -> Array
     # print(new_params["model"]["embed"]["wpe"].shape, params["model"]["embed"]["wpe"].shape)
     # The positional embeddings will be resized when there is a difference in image
     # resolutions between pretraining and finetuning stage.
-    if (
-            args.posemb == "learnable"
-            and new_params["model"]["embed"]["wpe"].shape
-            != params["model"]["embed"]["wpe"].shape
-    ):
-        new_params["model"]["embed"]["wpe"] = jax.image.resize(
-            new_params["model"]["embed"]["wpe"],
-            params["model"]["embed"]["wpe"].shape,
-            method="bicubic",
-        )
+    # if (
+    #         args.posemb == "learnable"
+    #         and new_params["model"]["embed"]["wpe"].shape
+    #         != params["model"]["embed"]["wpe"].shape
+    # ):
+    #     new_params["model"]["embed"]["wpe"] = jax.image.resize(
+    #         new_params["model"]["embed"]["wpe"],
+    #         params["model"]["embed"]["wpe"].shape,
+    #         method="bicubic",
+    #     )
 
     # Reinitialize the classifier head if the model was pretrained on different dataset
     # and `args.label_mapping` is not specified.
