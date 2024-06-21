@@ -173,7 +173,8 @@ class ViTLayer(ViTBase, nn.Module):
 
         self.norm1 = nn.LayerNorm(dtype=self.dtype, use_fast_variance=False)
         self.norm2 = nn.LayerNorm(dtype=self.dtype, use_fast_variance=False)
-        self.drop = nn.Dropout(self.drop_path_prob, broadcast_dims=(1, 2))
+        self.drop1 = nn.Dropout(self.drop_path_prob, broadcast_dims=(1, 2))
+        self.drop2 = nn.Dropout(self.drop_path_prob, broadcast_dims=(1, 2))
 
         self.scale1 = self.scale2 = 1.0
         if self.layerscale:
@@ -181,8 +182,8 @@ class ViTLayer(ViTBase, nn.Module):
             self.scale2 = self.param("scale2", init.constant(1e-4), (self.dim,))
 
     def __call__(self, x: Array, det: bool = True) -> Array:
-        x = x + self.drop(self.scale1 * self.attn(self.norm1(x), det), det)
-        x = x + self.drop(self.scale2 * self.ff(self.norm2(x), det), det)
+        x = x + self.drop1(self.scale1 * self.attn(self.norm1(x), det), det)
+        x = x + self.drop2(self.scale2 * self.ff(self.norm2(x), det), det)
         return x
 
 
