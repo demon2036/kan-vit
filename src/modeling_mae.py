@@ -324,6 +324,9 @@ class MAE(ViTBase, MAEBase, nn.Module):
         x = jnp.take_along_axis(x, ids_restore[..., None], axis=1)
 
         x = jnp.concatenate([cls_token, x], axis=1)
+
+        print(x.shape,self.decoder_pos_embed.shape)
+
         x = x + jax.lax.stop_gradient(self.decoder_pos_embed)
 
 
