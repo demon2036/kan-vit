@@ -84,7 +84,7 @@ def create_transforms(args: argparse.Namespace) -> tuple[nn.Module, nn.Module]:
     ]
 
     train_transforms = [
-        T.RandomResizedCrop(args.input_size, scale=(0.2, 1.0), interpolation=3),  # 3 is bicubic
+        T.RandomResizedCrop(args.image_size, scale=(0.2, 1.0), interpolation=3),  # 3 is bicubic
         T.RandomHorizontalFlip(),
         T.ToTensor(),
         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])]
