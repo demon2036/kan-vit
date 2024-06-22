@@ -30,7 +30,7 @@ python3 src/main_pretrain_mae_eval.py \
     --dropout-seed 0 \
     --shuffle-seed 0 \
     --optimizer adamw \
-    --learning-rate 2.4e-4 \
+    --learning-rate 2.4e-5 \
     --weight-decay 0.05 \
     --adam-b1 0.9 \
     --adam-b2 0.95 \
