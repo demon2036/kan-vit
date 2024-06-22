@@ -252,12 +252,16 @@ class MAE(ViTBase, MAEBase, nn.Module):
             "mask_token", init.truncated_normal(0.02), (1, 1, self.decoder_dim)
         )
 
+        self.decoder_pos_embed = self.param(
+            "decoder_pos_embed", init.truncated_normal(0.02), (1, self.num_patches[0] ** 2 + 1, self.decoder_dim)
+        )
+
         # self.decoder_pos_embed = self.param(
         #     "decoder_pos_embed", init.truncated_normal(0.02), (1, self.num_patches[0] ** 2, self.decoder_dim)
         # )
 
-        self.decoder_pos_embed = fixed_sincos2d_embeddings(*self.num_patches, self.decoder_dim).reshape(1, -1,
-                                                                                                        self.decoder_dim)
+        # self.decoder_pos_embed = fixed_sincos2d_embeddings(*self.num_patches, self.decoder_dim).reshape(1, -1,
+        #                                                                                                 self.decoder_dim)
 
         kwargs = self.kwargs
         kwargs.update({'dim': self.decoder_dim, 'heads': self.decoder_heads, 'layers': self.decoder_layers})
@@ -309,8 +313,8 @@ class MAE(ViTBase, MAEBase, nn.Module):
         # print(x.shape)
         x = self.decoder_embed(x)
         # print(x.shape)
-        if self.pooling == "cls":
-            cls_token, x = x[:, :1, :], x[:, 1:]
+
+        cls_token, x = x[:, :1, :], x[:, 1:]
 
         mask_tokens = jnp.tile(self.mask_token, (x.shape[0], ids_restore.shape[1] - x.shape[1], 1))
 
@@ -319,18 +323,19 @@ class MAE(ViTBase, MAEBase, nn.Module):
         x = jnp.concatenate([x, mask_tokens], axis=1)
         x = jnp.take_along_axis(x, ids_restore[..., None], axis=1)
 
+        x = jnp.concatenate([cls_token, x], axis=1)
         x = x + jax.lax.stop_gradient(self.decoder_pos_embed)
 
-        if self.pooling == "cls":
-            x = jnp.concatenate([cls_token, x], axis=1)
+
+
 
         for layer in self.decoder_layer:
             x = layer(x)
 
         x = self.decoder_norm(x)
         x = self.decoder_pred(x)
-        if self.pooling == "cls":
-            cls_token, x = x[:, :1, :], x[:, 1:]
+
+        cls_token, x = x[:, :1, :], x[:, 1:]
         # print(mask_tokens.shape, x.shape)
         return x
 
