@@ -376,7 +376,8 @@ def create_mae_train_state(args: argparse.Namespace) -> TrainState:
     # if args.pretrained_ckpt is not None:
     #     params = load_pretrained_params(args, params)
     import webdataset as wds
-    with wds.gopen("gs://fbs0_dl_bucket/mae/mae_base.msgpack") as fp:
+    #"gs://fbs0_dl_bucket/mae/mae_base.msgpack"
+    with wds.gopen(args.pretrained_ckpt) as fp:
         params = flax.serialization.msgpack_restore(fp.read())
 
     if args.grad_accum > 1:
