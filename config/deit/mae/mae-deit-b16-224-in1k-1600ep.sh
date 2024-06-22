@@ -20,7 +20,7 @@ python3 src/main_pretrain_mae.py \
     --labels 1000 \
     --patch-size 16 \
     --image-size 224 \
-    --posemb sincos2d \
+    --posemb learnable \
     --pooling cls \
     --dropout 0.0 \
     --droppath 0.0 \
