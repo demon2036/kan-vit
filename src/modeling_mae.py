@@ -62,7 +62,7 @@ class ViTBase:
     polynomial_degree: int = 8
     dtype: Any = jnp.float32
     precision: Any = jax.lax.Precision.DEFAULT
-    use_fast_variance: bool = False
+    use_fast_variance: bool = True
 
     @property
     def kwargs(self) -> dict[str, Any]:
