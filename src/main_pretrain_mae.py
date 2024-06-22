@@ -101,7 +101,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--random-crop", default="rrc")
     parser.add_argument("--color-jitter", type=float, default=0.0)
-    parser.add_argument("--auto-augment", default="rand-m9-mstd0.5-inc1")
+    parser.add_argument("--auto-augment", default="none")
     parser.add_argument("--random-erasing", type=float, default=0.25)
     parser.add_argument("--augment-repeats", type=int, default=3)
     parser.add_argument("--test-crop-ratio", type=float, default=0.875)
