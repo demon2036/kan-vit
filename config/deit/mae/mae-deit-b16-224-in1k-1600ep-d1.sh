@@ -6,6 +6,7 @@ python3 src/main_pretrain_mae.py \
     --train-batch-size $train_batch_size \
     --train-loader-workers 80 \
     --random-crop rrc \
+      --auto-augment none \
     --color-jitter 0.0 \
     --random-erasing 0.0 \
     --augment-repeats 1 \
@@ -20,7 +21,7 @@ python3 src/main_pretrain_mae.py \
     --labels 1000 \
     --patch-size 16 \
     --image-size 224 \
-    --posemb sincos2d \
+    --posemb learnable \
     --pooling cls \
     --dropout 0.0 \
     --droppath 0.0 \
@@ -44,4 +45,5 @@ python3 src/main_pretrain_mae.py \
     --project deit3-jax-mae \
     --name $(basename $0 .sh) \
     --ipaddr $(curl -s ifconfig.me) \
-    --hostname $(hostname)
+    --hostname $(hostname) \
+    --decoder_layers 1
