@@ -55,6 +55,12 @@ def main(args: argparse.Namespace):
         wandb.init(name=args.name, project=args.project, config=args, settings=wandb.Settings(_disable_stats=True))
     average_meter, max_val_acc1 = AverageMeter(use_latest=["learning_rate"]), 0.0
 
+    if jax.process_index() == 0:
+        params_bytes = msgpack_serialize(unreplicate(state.params))
+        save_checkpoint_in_background(args, params_bytes, postfix="last")
+
+    """
+
     for step in tqdm.trange(1, args.training_steps + 1, dynamic_ncols=True):
         for _ in range(args.grad_accum):
             batch = shard(jax.tree_map(np.asarray, next(train_dataloader_iter)))
@@ -88,7 +94,7 @@ def main(args: argparse.Namespace):
                 metrics["val/acc1/best"] = max_val_acc1
                 metrics["processed_samples"] = step * args.train_batch_size
                 wandb.log(metrics, step)
-
+        """
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
