@@ -29,7 +29,7 @@ from flax.training.common_utils import shard_prng_key
 from jax.tree_util import tree_map_with_path
 
 from dataset import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
-from modeling_mae_fork_fork import ViT, MAE
+from modeling_mae import ViT, MAE
 from utils import Mixup, get_layer_index_fn, load_pretrained_params, modified_lamb
 
 CRITERION_COLLECTION = {
@@ -373,8 +373,12 @@ def create_mae_train_state(args: argparse.Namespace) -> TrainState:
     # print(module.tabulate(init_rngs, **example_inputs))
 
     params = module.init(init_rngs, **example_inputs)["params"]
-    if args.pretrained_ckpt is not None:
-        params = load_pretrained_params(args, params)
+    # if args.pretrained_ckpt is not None:
+    #     params = load_pretrained_params(args, params)
+    import webdataset as wds
+    with wds.gopen("gs://fbs0_dl_bucket/mae/mae_base.msgpack") as fp:
+        params = flax.serialization.msgpack_restore(fp.read())
+
     if args.grad_accum > 1:
         grad_accum = jax.tree_map(jnp.zeros_like, params)
 

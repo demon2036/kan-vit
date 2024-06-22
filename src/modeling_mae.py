@@ -62,6 +62,7 @@ class ViTBase:
     polynomial_degree: int = 8
     dtype: Any = jnp.float32
     precision: Any = jax.lax.Precision.DEFAULT
+    use_fast_variance:bool =False
 
     @property
     def kwargs(self) -> dict[str, Any]:
@@ -171,8 +172,8 @@ class ViTLayer(ViTBase, nn.Module):
         else:
             self.ff = FeedForward(**self.kwargs)
 
-        self.norm1 = nn.LayerNorm(dtype=self.dtype, use_fast_variance=False)
-        self.norm2 = nn.LayerNorm(dtype=self.dtype, use_fast_variance=False)
+        self.norm1 = nn.LayerNorm(dtype=self.dtype, use_fast_variance=self.use_fast_variance)
+        self.norm2 = nn.LayerNorm(dtype=self.dtype, use_fast_variance=self.use_fast_variance)
         self.drop1 = nn.Dropout(self.drop_path_prob, broadcast_dims=(1, 2))
         self.drop2 = nn.Dropout(self.drop_path_prob, broadcast_dims=(1, 2))
 
@@ -199,7 +200,7 @@ class ViT(ViTBase, nn.Module):
         self.layer = [layer_fn(**self.kwargs, drop_path_prob=dpr[i]) for i in range(self.layers)]
         # self.layer = [layer_fn(**self.kwargs, drop_path_prob=self.droppath) for i in range(self.layers)]
 
-        self.norm = nn.LayerNorm(dtype=self.dtype, use_fast_variance=False)
+        self.norm = nn.LayerNorm(dtype=self.dtype, use_fast_variance=self.use_fast_variance)
         self.head = Dense(self.labels, dtype=self.dtype, precision=self.precision) if self.labels is not None else None
 
     def __call__(self, x: Array, det: bool = True) -> Array:
@@ -243,7 +244,7 @@ class MAE(ViTBase, MAEBase, nn.Module):
         layer_fn = nn.remat(ViTLayer) if self.grad_ckpt else ViTLayer
         self.layer = [layer_fn(**self.kwargs) for _ in range(self.layers)]
 
-        self.norm = nn.LayerNorm()
+        self.norm = nn.LayerNorm(dtype=self.dtype, use_fast_variance=self.use_fast_variance)
 
         self.decoder_embed = Dense(self.decoder_dim)
 
@@ -263,7 +264,7 @@ class MAE(ViTBase, MAEBase, nn.Module):
         print(kwargs)
         self.decoder_layer = [layer_fn(**kwargs) for _ in range(self.decoder_layers)]
 
-        self.decoder_norm = nn.LayerNorm()
+        self.decoder_norm = nn.LayerNorm(dtype=self.dtype, use_fast_variance=self.use_fast_variance)
         self.decoder_pred = Dense(self.patch_size ** 2 * 3)
 
     def random_masking(self, x):
@@ -333,11 +334,25 @@ class MAE(ViTBase, MAEBase, nn.Module):
         # print(mask_tokens.shape, x.shape)
         return x
 
+    def patchify(self, imgs):
+        """
+        imgs: (N, H, W, 3)
+        x: (N, L, patch_size**2 *3)
+        """
+        p = self.patch_size
+        assert imgs.shape[1] == imgs.shape[2] and imgs.shape[1] % p == 0
+        h = w = imgs.shape[2] // p
+        x = imgs.reshape((imgs.shape[0], h, p, w, p, 3))
+        x = jnp.einsum('nhpwqc->nhwpqc', x)
+        x = x.reshape((imgs.shape[0], h * w, p ** 2 * 3))
+        return x
+
     def forward_loss(self, x, pred, mask):
-        target = einops.rearrange(x, 'b (h k1) (w k2) c->b (h w) (c k1 k2)', k1=self.patch_size, k2=self.patch_size)
+        # target = einops.rearrange(x, 'b (h k1) (w k2) c->b (h w) (c k1 k2)', k1=self.patch_size, k2=self.patch_size)
+        target = self.patchify(x)
 
         mean = target.mean(axis=-1, keepdims=True)
-        var = target.var(axis=-1, keepdims=True)
+        var = target.var(axis=-1, keepdims=True, ddof=1)
         target = (target - mean) / (var + 1.e-6) ** .5
 
         loss = (pred - target) ** 2
@@ -346,7 +361,7 @@ class MAE(ViTBase, MAEBase, nn.Module):
         return loss
 
     def __call__(self, images: Array, det: bool = True, rng=None):
-        print(images.shape)
+
         latent, mask, ids_restore = self.forward_encoder(images, det)
         pred = self.forward_decoder(latent, ids_restore)
         loss = self.forward_loss(images, pred, mask)
