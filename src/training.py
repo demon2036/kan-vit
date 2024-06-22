@@ -295,8 +295,9 @@ class TrainMAEModule(nn.Module):
     def __call__(self, images: Array, labels: Array, det: bool = True) -> ArrayTree:
         # Normalize the pixel values in TPU devices, instead of copying the normalized
         # float values from CPU. This may reduce both memory usage and latency.
-        images = jnp.moveaxis(images, 1, 3).astype(jnp.float32) / 0xFF
-        images = (images - IMAGENET_DEFAULT_MEAN) / IMAGENET_DEFAULT_STD
+        # images = jnp.moveaxis(images, 1, 3).astype(jnp.float32) / 0xFF
+        # images = (images - IMAGENET_DEFAULT_MEAN) / IMAGENET_DEFAULT_STD
+        images=jnp.moveaxis(images, 1, 3).astype(jnp.float32)
 
         loss, pred, mask = self.model(images, det=det)
 
