@@ -65,6 +65,9 @@ def main(args: argparse.Namespace):
             jax.process_index() == 0
         ):
             metrics = average_meter.summary(prefix="train/")
+
+            print(metrics)
+
             metrics["processed_samples"] = step * args.train_batch_size
             wandb.log(metrics, step)
 

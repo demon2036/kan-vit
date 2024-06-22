@@ -292,6 +292,23 @@ class MAE(ViTBase, MAEBase, nn.Module):
         return x, mask, ids_restore
 
     def forward_encoder(self, x, det: bool = True):
+        # x = self.drop(self.embed(x), det)
+        #
+        # if self.pooling == "cls":
+        #     cls_token, x = x[:, :1, :], x[:, 1:]
+        #
+        # x, mask, ids_restore = self.random_masking(x)
+        #
+        # if self.pooling == "cls":
+        #     x = jnp.concatenate((cls_token, x), axis=1)
+        #
+        # for layer in self.layer:
+        #     x = layer(x, det)
+        # x = self.norm(x)
+        #
+        # return x, mask, ids_restore
+
+
         x = self.drop(self.embed(x), det)
 
         cls_token, x = x[:, :1, :], x[:, 1:]
@@ -303,6 +320,9 @@ class MAE(ViTBase, MAEBase, nn.Module):
             x = layer(x, det)
         x = self.norm(x)
         return x, mask, ids_restore
+
+
+
 
     def forward_decoder(self, x, ids_restore):
         # print('\n' * 5)

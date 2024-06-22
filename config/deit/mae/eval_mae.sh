@@ -26,7 +26,7 @@ python3 src/main_pretrain_mae_eval.py \
     --patch-size 16 \
     --image-size 224 \
     --posemb learnable \
-    --pooling gap \
+    --pooling cls \
     --dropout 0.0 \
     --droppath 0.1 \
     --init-seed 0 \
@@ -46,7 +46,7 @@ python3 src/main_pretrain_mae_eval.py \
     --training-steps $((1281167 * $epoch / $train_batch_size)) \
     --log-interval 100 \
     --eval-interval $((1281167 * 1 / $train_batch_size)) \
-    --project deit3-jax \
+    --project deit3-jax-mae \
     --name $(basename $0 .sh) \
     --ipaddr $(curl -s ifconfig.me) \
     --hostname $(hostname)
