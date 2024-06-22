@@ -129,7 +129,7 @@ class PatchEmbed(ViTBase, nn.Module):
             cls_token = jnp.repeat(self.cls_token, x.shape[0], axis=0)
             x = jnp.concatenate((cls_token, x), axis=1)
 
-        x = x + self.wpe
+        x = x + jax.lax.stop_gradient(self.wpe)
 
         return x
 
@@ -319,7 +319,7 @@ class MAE(ViTBase, MAEBase, nn.Module):
         x = jnp.concatenate([x, mask_tokens], axis=1)
         x = jnp.take_along_axis(x, ids_restore[..., None], axis=1)
 
-        x = x + self.decoder_pos_embed
+        x = x + jax.lax.stop_gradient(self.decoder_pos_embed)
 
         if self.pooling == "cls":
             x = jnp.concatenate([cls_token, x], axis=1)
