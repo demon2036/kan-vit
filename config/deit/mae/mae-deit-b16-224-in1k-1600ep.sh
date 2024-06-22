@@ -6,6 +6,7 @@ python3 src/main_pretrain_mae.py \
     --train-batch-size $train_batch_size \
     --train-loader-workers 80 \
     --random-crop rrc \
+    --auto-augment none \
     --color-jitter 0.0 \
     --random-erasing 0.0 \
     --augment-repeats 1 \
