@@ -62,7 +62,7 @@ class ViTBase:
     polynomial_degree: int = 8
     dtype: Any = jnp.float32
     precision: Any = jax.lax.Precision.DEFAULT
-    use_fast_variance:bool =False
+    use_fast_variance: bool = False
 
     @property
     def kwargs(self) -> dict[str, Any]:
@@ -308,7 +308,6 @@ class MAE(ViTBase, MAEBase, nn.Module):
         #
         # return x, mask, ids_restore
 
-
         x = self.drop(self.embed(x), det)
 
         cls_token, x = x[:, :1, :], x[:, 1:]
@@ -320,9 +319,6 @@ class MAE(ViTBase, MAEBase, nn.Module):
             x = layer(x, det)
         x = self.norm(x)
         return x, mask, ids_restore
-
-
-
 
     def forward_decoder(self, x, ids_restore):
         # print('\n' * 5)
@@ -341,12 +337,9 @@ class MAE(ViTBase, MAEBase, nn.Module):
 
         x = jnp.concatenate([cls_token, x], axis=1)
 
-        print(x.shape,self.decoder_pos_embed.shape)
+        print(x.shape, self.decoder_pos_embed.shape)
 
         x = x + jax.lax.stop_gradient(self.decoder_pos_embed)
-
-
-
 
         for layer in self.decoder_layer:
             x = layer(x)
