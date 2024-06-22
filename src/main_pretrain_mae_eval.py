@@ -59,6 +59,10 @@ def main(args: argparse.Namespace):
         params_bytes = msgpack_serialize(unreplicate(state.params))
         save_checkpoint_in_background(args, params_bytes, postfix="last")
 
+    print('ok')
+    while True:
+        pass
+
     """
 
     for step in tqdm.trange(1, args.training_steps + 1, dynamic_ncols=True):
