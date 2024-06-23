@@ -41,7 +41,7 @@ python3 src/main_pretrain_mae.py \
     --warmup-steps $((1281167 * $warmup_epoch / $train_batch_size)) \
     --training-steps $((1281167 * $epoch / $train_batch_size)) \
     --log-interval 100 \
-    --eval-interval $((1281167 * 5 / $train_batch_size)) \
+    --eval-interval $((1281167 * 50 / $train_batch_size)) \
     --project deit3-jax-mae \
     --name $(basename $0 .sh) \
     --ipaddr $(curl -s ifconfig.me) \
