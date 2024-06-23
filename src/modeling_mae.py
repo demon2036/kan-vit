@@ -82,6 +82,8 @@ class ViTBase:
 
 
 class PatchEmbed(ViTBase, nn.Module):
+    stop_gradient_wpe: bool = True
+
     def setup(self):
         self.wte = Conv(
             self.dim,
@@ -129,7 +131,10 @@ class PatchEmbed(ViTBase, nn.Module):
             cls_token = jnp.repeat(self.cls_token, x.shape[0], axis=0)
             x = jnp.concatenate((cls_token, x), axis=1)
 
-        x = x + jax.lax.stop_gradient(self.wpe)
+        if self.stop_gradient_wpe:
+            x = x + jax.lax.stop_gradient(self.wpe)
+        else:
+            x = x + self.wpe
 
         return x
 
@@ -190,7 +195,7 @@ class ViTLayer(ViTBase, nn.Module):
 
 class ViT(ViTBase, nn.Module):
     def setup(self):
-        self.embed = PatchEmbed(**self.kwargs)
+        self.embed = PatchEmbed(stop_gradient_wpe=False, **self.kwargs, )
         self.drop = nn.Dropout(self.dropout)
 
         # The layer class should be wrapped with `nn.remat` if `grad_ckpt` is enabled.
