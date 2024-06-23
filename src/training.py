@@ -381,8 +381,8 @@ def create_mae_train_state(args: argparse.Namespace) -> TrainState:
     # with wds.gopen(args.pretrained_ckpt) as fp:
     #     params = flax.serialization.msgpack_restore(fp.read())
 
-    with wds.gopen("gs://fbs0_dl_bucket/mae/mae_base.msgpack") as fp:
-        params = flax.serialization.msgpack_restore(fp.read())
+    # with wds.gopen("gs://fbs0_dl_bucket/mae/mae_base.msgpack") as fp:
+    #     params = flax.serialization.msgpack_restore(fp.read())
 
     if args.grad_accum > 1:
         grad_accum = jax.tree_map(jnp.zeros_like, params)
