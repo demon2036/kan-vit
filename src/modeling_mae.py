@@ -43,8 +43,10 @@ Conv = partial(nn.Conv, kernel_init=init.truncated_normal(0.02))
 def sincos_pos_embed_init(key, shape, cls_token=True):
     grid_size, embed_dim = shape
 
-    return jnp.array(get_2d_sincos_pos_embed(embed_dim, grid_size,
-                                             cls_token=cls_token))
+    pos_embed = jnp.array(get_2d_sincos_pos_embed(embed_dim, grid_size,
+                                                  cls_token=cls_token))
+
+    return jnp.expand_dims(pos_embed, 0)
 
 
 def get_2d_sincos_pos_embed(embed_dim, grid_size, cls_token=False):
@@ -228,7 +230,6 @@ class ViTLayer(ViTBase, nn.Module):
     drop_path_prob: float = 0.0
 
     def setup(self):
-        print(self.drop_path_prob)
         self.attn = Attention(**self.kwargs)
         if self.use_kan:
             self.ff = KANLayer(self.polynomial_degree)
