@@ -25,14 +25,14 @@ python3 src/main.py \
     --labels 1000 \
     --patch-size 16 \
     --image-size 224 \
-    --posemb sincos2d \
+    --posemb learnable \
     --pooling gap \
     --dropout 0.0 \
     --droppath 0.1 \
     --init-seed 0 \
     --mixup-seed 0 \
     --dropout-seed 0 \
-    --shuffle-seed 2 \
+    --shuffle-seed 3407 \
     --optimizer adamw \
     --learning-rate 2e-3 \
     --weight-decay 0.05 \
